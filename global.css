@@ -1,0 +1,520 @@
+/* ============================================
+   SMATCH WAREHOUSE — GLOBAL STYLES V3.0
+   Phase 1 + Phase 2 + Phase 3
+   ============================================ */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    overflow: hidden;
+    background-color: #0b0e11;
+    font-family: 'Outfit', 'Segoe UI', Roboto, sans-serif;
+    color: #fff;
+}
+
+#canvas-container {
+    width: 100vw;
+    height: 100vh;
+}
+
+/* ============================================
+   LOADING SCREEN
+   ============================================ */
+#loading-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: #0b0e11;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.8s ease, visibility 0.8s ease;
+}
+
+#loading-screen.fade-out {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.loader-content {
+    text-align: center;
+}
+
+.loader-logo {
+    font-family: 'Outfit', sans-serif;
+    font-size: 48px;
+    font-weight: 700;
+    letter-spacing: 12px;
+    color: #FFC30D;
+    margin-bottom: 8px;
+}
+
+.loader-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: #556677;
+    letter-spacing: 4px;
+    margin-bottom: 40px;
+}
+
+.loader-bar-track {
+    width: 280px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+    margin: 0 auto 16px auto;
+    overflow: hidden;
+}
+
+.loader-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #FFC30D, #ffdb4d);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+}
+
+.loader-status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: #445566;
+}
+
+/* ============================================
+   HUD PANEL (Left)
+   ============================================ */
+#ui-layer {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 5;
+}
+
+.hud-panel {
+    background: rgba(11, 14, 17, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-left: 3px solid #FFC30D;
+    padding: 16px 20px;
+    color: #fff;
+    width: 280px;
+    pointer-events: auto;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.hud-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+h1 {
+    margin: 0;
+    font-family: 'Outfit', sans-serif;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+.hud-live-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #32ff6f;
+    letter-spacing: 1px;
+    animation: pulse-badge 2s ease-in-out infinite;
+}
+
+@keyframes pulse-badge {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.4;
+    }
+}
+
+.sub-text {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #556677;
+    letter-spacing: 2px;
+    margin-top: 2px;
+}
+
+.hud-stats {
+    margin-top: 14px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    padding-top: 10px;
+}
+
+.stat-row {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 7px;
+    font-size: 12px;
+    color: #8899aa;
+}
+
+.stat-val {
+    color: #FFC30D;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+}
+
+/* Zone Legend / Filters */
+.hud-legend {
+    border-left-color: #556677;
+    padding: 12px 16px;
+}
+
+.legend-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #556677;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+}
+
+.legend-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: #aabbcc;
+    margin-bottom: 7px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.legend-toggle:hover {
+    color: #fff;
+}
+
+.legend-toggle input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 1.5px solid #556677;
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+    transition: all 0.15s;
+}
+
+.legend-toggle input[type="checkbox"]:checked {
+    background: #FFC30D;
+    border-color: #FFC30D;
+}
+
+.legend-toggle input[type="checkbox"]:checked::after {
+    content: '✓';
+    position: absolute;
+    top: -1px;
+    left: 2px;
+    font-size: 10px;
+    color: #000;
+    font-weight: bold;
+}
+
+.legend-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+/* ============================================
+   SEARCH + AUTOCOMPLETE
+   ============================================ */
+.search-box {
+    display: flex;
+    gap: 5px;
+    margin-top: 14px;
+}
+
+.search-wrapper {
+    position: relative;
+    flex: 1;
+}
+
+input {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+    padding: 9px 10px;
+    width: 100%;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+input:focus {
+    border-color: #FFC30D;
+}
+
+input::placeholder {
+    color: #445566;
+}
+
+.search-btn {
+    background: #FFC30D;
+    border: none;
+    color: #000;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 700;
+    font-size: 12px;
+    cursor: pointer;
+    padding: 0 14px;
+    letter-spacing: 1px;
+    transition: background 0.2s;
+}
+
+.search-btn:hover {
+    background: #ffdb4d;
+}
+
+.search-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    max-height: 160px;
+    overflow-y: auto;
+    display: none;
+    background: rgba(11, 14, 17, 0.96);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-top: none;
+    z-index: 20;
+}
+
+.search-suggestions.visible {
+    display: block;
+}
+
+.search-suggestion-item {
+    padding: 7px 10px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: #8899aa;
+    cursor: pointer;
+    transition: all 0.1s;
+    display: flex;
+    justify-content: space-between;
+}
+
+.search-suggestion-item:hover {
+    background: rgba(255, 195, 13, 0.1);
+    color: #FFC30D;
+}
+
+.search-suggestion-item .sug-sku {
+    color: #556677;
+    font-size: 10px;
+}
+
+/* ============================================
+   DETAIL PANEL (Right Side)
+   ============================================ */
+.detail-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 280px;
+    z-index: 5;
+    background: rgba(11, 14, 17, 0.92);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-right: 3px solid #FFC30D;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.detail-panel.hidden {
+    transform: translateX(20px);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.detail-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.detail-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: #FFC30D;
+    letter-spacing: 2px;
+}
+
+.detail-close {
+    background: none;
+    border: none;
+    color: #556677;
+    font-size: 16px;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.2s;
+}
+
+.detail-close:hover {
+    color: #fff;
+}
+
+.detail-body {
+    padding: 14px 18px;
+}
+
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 8px;
+    font-size: 12px;
+}
+
+.detail-row span:first-child {
+    color: #556677;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.detail-row span:last-child {
+    color: #ccd;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.dp-highlight {
+    color: #FFC30D !important;
+    font-weight: 600;
+}
+
+.detail-divider {
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    margin: 10px 0;
+}
+
+/* ============================================
+   TOOLTIP (Hover — lightweight)
+   ============================================ */
+#tooltip {
+    position: absolute;
+    background: rgba(8, 10, 14, 0.94);
+    backdrop-filter: blur(6px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-top: 2px solid #FFC30D;
+    padding: 10px 14px;
+    border-radius: 4px;
+    color: white;
+    display: none;
+    pointer-events: none;
+    min-width: 160px;
+    z-index: 10;
+    transform: translate(15px, 15px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+
+.tt-header {
+    font-family: 'JetBrains Mono', monospace;
+    color: #FFC30D;
+    font-size: 9px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    letter-spacing: 2px;
+}
+
+.tt-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    margin-bottom: 3px;
+    color: #8899aa;
+}
+
+.tt-row span:last-child {
+    color: #ddd;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* ============================================
+   BOTTOM CONTROLS
+   ============================================ */
+#controls {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    display: flex;
+    gap: 6px;
+    z-index: 5;
+}
+
+.btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #8899aa;
+    padding: 9px 16px;
+    cursor: pointer;
+    font-family: 'Outfit', sans-serif;
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+    backdrop-filter: blur(4px);
+}
+
+.btn:hover {
+    background: rgba(255, 195, 13, 0.15);
+    color: #FFC30D;
+    border-color: rgba(255, 195, 13, 0.3);
+}
+
+.btn.active {
+    background: #FFC30D;
+    color: #000;
+    border-color: #FFC30D;
+}
+
+.btn-reset {
+    border-color: rgba(255, 195, 13, 0.3);
+    color: #FFC30D;
+}
+
+/* ============================================
+   OCCUPATION BADGES (floating 3D sprites handled in JS)
+   ============================================ */
+
+/* Scrollbar for suggestions */
+.search-suggestions::-webkit-scrollbar {
+    width: 4px;
+}
+
+.search-suggestions::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.search-suggestions::-webkit-scrollbar-thumb {
+    background: #333;
+    border-radius: 2px;
+}

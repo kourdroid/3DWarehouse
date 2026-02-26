@@ -1,0 +1,71 @@
+body { margin: 0; overflow: hidden; background-color: #0b0e11; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        #canvas-container { width: 100vw; height: 100vh; }
+        
+        /* HUD Styling */
+        #ui-layer {
+            position: absolute; top: 20px; left: 20px; pointer-events: none;
+            display: flex; flex-direction: column; gap: 10px;
+        }
+        .hud-panel {
+            background: rgba(11, 14, 17, 0.85);
+            backdrop-filter: blur(10px);
+            border-left: 3px solid #FFC30D;
+            padding: 15px 20px;
+            color: #fff;
+            width: 280px;
+            pointer-events: auto;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        h1 { margin: 0 0 5px 0; font-size: 18px; font-weight: 700; letter-spacing: 1px; color: #fff; text-transform: uppercase; }
+        .sub-text { font-size: 11px; color: #8899a6; font-family: monospace; }
+        
+        /* Stats Badge */
+        .stat-row { display: flex; justify-content: space-between; margin-top: 8px; font-size: 13px; color: #ccc; }
+        .stat-val { color: #FFC30D; font-weight: bold; font-family: monospace; }
+
+        /* Search Box */
+        .search-box {
+            display: flex; gap: 5px; margin-top: 15px;
+        }
+        input {
+            background: rgba(255,255,255,0.1); border: 1px solid #333; color: white;
+            padding: 8px; width: 100%; font-family: monospace; outline: none;
+        }
+        input:focus { border-color: #FFC30D; }
+        .search-btn {
+            background: #FFC30D; border: none; color: #000; font-weight: bold; cursor: pointer; padding: 0 10px;
+        }
+
+        /* Tooltip */
+        #tooltip {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.9);
+            border: 1px solid #333;
+            border-top: 2px solid #FFC30D;
+            padding: 12px;
+            border-radius: 2px;
+            color: white;
+            display: none;
+            pointer-events: none;
+            min-width: 180px;
+            z-index: 10;
+            transform: translate(15px, 15px);
+        }
+        .tt-header { color: #FFC30D; font-size: 11px; font-weight: bold; margin-bottom: 5px; letter-spacing: 1px; }
+        .tt-row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; color: #ddd; }
+
+        /* Controls */
+        #controls {
+            position: absolute; bottom: 30px; right: 30px;
+            display: flex; gap: 10px;
+        }
+        .btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white; padding: 10px 20px; cursor: pointer;
+            font-weight: 600; font-size: 12px; text-transform: uppercase;
+            transition: all 0.2s;
+        }
+        .btn:hover { background: #FFC30D; color: #000; border-color: #FFC30D; }
+        .btn.active { background: #FFC30D; color: #000; }
+

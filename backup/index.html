@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smatch Logistics - Enterprise 3D</title>
+    <link rel="stylesheet" href="./global.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="ui-layer">
+        <div class="hud-panel">
+            <h1>SMATCH WAREHOUSE</h1>
+            <div class="sub-text">LIVE FEED // INSTANCE_RENDERER_V2</div>
+            
+            <div class="search-box">
+                <input type="text" id="search-input" placeholder="Search ID (e.g., A0-B3...)">
+                <button class="search-btn" onclick="performSearch()">GO</button>
+            </div>
+
+            <div style="margin-top: 15px; border-top: 1px solid #333; padding-top: 10px;">
+                <div class="stat-row"><span>TOTAL POSITIONS</span><span class="stat-val" id="stat-total">0</span></div>
+                <div class="stat-row"><span>PALLET ZONES</span><span class="stat-val">Aisle 1-3</span></div>
+                <div class="stat-row"><span>PICKING ZONES</span><span class="stat-val">Aisle 4-6</span></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="tooltip">
+        <div class="tt-header">UNIT DETAILS</div>
+        <div class="tt-row"><span>ID</span><span id="tt-id" style="color:#fff">--</span></div>
+        <div class="tt-row"><span>TYPE</span><span id="tt-type">--</span></div>
+        <div class="tt-row"><span>SKU</span><span id="tt-sku">--</span></div>
+        <div class="tt-row"><span>QTY</span><span id="tt-qty">--</span></div>
+    </div>
+
+    <div id="controls">
+        <button class="btn" onclick="viewMode('normal')">Standard View</button>
+        <button class="btn" onclick="viewMode('heatmap')">Velocity Heatmap</button>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script src="./scripts/script.js" defer></script>
+</html>
