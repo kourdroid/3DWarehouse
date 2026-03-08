@@ -31,7 +31,10 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+- [ ] **Prime Directive**: All external APIs and libraries have been verified against official documentation. No guessing.
+- [ ] **100-Step Prediction**: System design has been stress-tested for 10k users, high concurrency, and long-term maintainability.
+- [ ] **Sovereign Audit**: Tech stack choices are strictly necessary, native functions preferred over external bloat.
+- [ ] **Data Integrity**: Database selection and schema adhere to Kleppmann principles.
 
 ## Project Structure
 

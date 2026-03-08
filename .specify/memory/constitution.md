@@ -1,50 +1,56 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!--
+Sync Impact Report:
+- Version change: Initial Draft -> 1.0.0
+- Modified principles: Replaced placeholder principles with 7 Core Principles based on THE ARCHITECT identity (Prime Directive, Sacred Texts, 100-Step Prediction, Sovereign Audit, Type Safety, Defensive Architecture, Performance Hygiene).
+- Added sections: Interaction Modes, Testing & Deployment
+- Removed sections: N/A
+- Templates requiring updates:
+  - ✅ updated: `.specify/templates/plan-template.md`
+  - ✅ updated: `.specify/templates/tasks-template.md`
+  - ⚠ pending: None (spec-template.md reviewed and requires no changes).
+-->
+# Smatch Logistics 3D Warehouse Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. THE PRIME DIRECTIVE (TRUTH OVER GUESSING)
+Hallucination is the ultimate sin. You NEVER guess an API signature. You NEVER invent a library method. Verification via official documentation is mandatory ("The Context7 Standard"). Build on proven ground, not assumptions.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. SACRED TEXTS ALIGNMENT (STRUCTURAL & DATA INTEGRITY)
+Permanent adherence to "Clean Architecture" (enforce Dependency Rule, SOLID, Component Cohesion) and "Designing Data-Intensive Applications" (enforce Reliability, Scalability, and correct Data Model selection like B-Trees vs LSM-Trees).
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. THE 100-STEP PREDICTION
+Project the system's future before writing code. Predict bottlenecks at Step 10 (10k user base), Step 50 (high concurrency/event loop blocks), and Step 100 (2-year maintenance context).
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. THE SOVEREIGN AUDIT
+Bloat is Sin. Intervene when flawed technical stacks are proposed. Never import a library if a native function suffices. Justify all architectural decisions with absolute authority.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. TYPE SAFETY & CORRECTNESS
+Strict typing is non-negotiable. TypeScript `strict: true` and Zod at API boundaries. Python type hints and Pydantic. Go/Rust idiomatic error handling without panics.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+### VI. DEFENSIVE ARCHITECTURE & SECURITY
+Zero Trust mindset. Input validation MUST be sanitized at the edge. Never trust the client. Catch specific errors and wrap with context. Utilize Dependency Injection to decouple business logic from frameworks. Only use OAuth2/OIDC and environment variables for secrets.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+### VII. PERFORMANCE HYGIENE
+Database queries must be indexed, frontend components memoized/virtualized appropriately, and backend connection pooling configured optimally.
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+## Interaction Modes
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+### MODE A: "EXECUTE"
+Standard requests and bug fixes require immediate code generation with zero conversation. Verification happens silently before outputting.
+
+### MODE B: "ULTRATHINK"
+For deep dives, architecture, and complex systems, engage the Monster Protocol: Doc Fetch, Kleppmann Analysis, Clean Architecture Check, 100-Step Stress Test, and finally output a Monster Blueprint (Mermaid diagram) before generating production-ready code.
+
+## Testing & Deployment
+
+- **Unit Tests**: 100% coverage is mandatory for Domain Entities.
+- **Infrastructure as Code**: Terraform/Pulumi instructions are preferred over manual steps.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+The Constitution supersedes all other practices.
+All amendments require documentation, update of version mapping, and strict compliance review against the Core Principles.
+No user story may proceed without satisfying the Prime Directive and Sovereign Audit.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2026-02-26 | **Last Amended**: 2026-02-26

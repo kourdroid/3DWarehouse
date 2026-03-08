@@ -5,45 +5,9 @@
 // ═══════════════════════════════════════════════════════
 
 // ─── WMS Data Generation ────────────────────────────
-// Future: Replace this with an API call to
-//   GET /api/v1/warehouses/{id}/stock
+// Previously hardcoded. Now obsolete; replaced by WebSocket Snapshot.
 function generateWMSData() {
-    wmsData = [];
-    itemLookup = {};
-    let totalPositions = 0;
-    let occupiedCount = 0;
-
-    for (let a = 0; a < CONFIG.aisles; a++) {
-        const isPickingZone = a >= CONFIG.palletZoneLimit;
-        for (let b = 0; b < CONFIG.baysPerAisle; b++) {
-            for (let l = 0; l < CONFIG.levels; l++) {
-                const subSlots = isPickingZone ? 4 : 1;
-                for (let s = 0; s < subSlots; s++) {
-                    totalPositions++;
-                    const occupied = Math.random() > 0.25;
-                    if (occupied) occupiedCount++;
-                    const id = `A${a}-B${b}-L${l}-${s}`;
-                    const item = {
-                        aisle: a, bay: b, level: l, subSlot: s,
-                        type: isPickingZone ? 'BOX' : 'PALLET',
-                        zone: isPickingZone ? 'PICKING' : 'PALLET',
-                        occupied,
-                        id,
-                        sku: occupied ? `SKU-${Math.floor(Math.random() * 9999).toString().padStart(4, '0')}` : 'EMPTY',
-                        velocity: Math.random(),
-                        qty: occupied ? Math.floor(Math.random() * 50) + 1 : 0,
-                        worldPos: { x: 0, y: 0, z: 0 },
-                    };
-                    wmsData.push(item);
-                    if (occupied) itemLookup[id] = item;
-                }
-            }
-        }
-    }
-
-    document.getElementById('stat-total').innerText = totalPositions.toLocaleString();
-    document.getElementById('stat-occupied').innerText =
-        `${occupiedCount.toLocaleString()} (${Math.round(occupiedCount / totalPositions * 100)}%)`;
+    console.warn("generateWMSData called but is deprecated via WS integration.");
 }
 
 // ─── Instanced Warehouse ────────────────────────────
@@ -105,10 +69,30 @@ function createInstancedWarehouse() {
     let ePFI = 0, eBFI = 0, ePFrI = 0, eBFrI = 0;
 
     wmsData.forEach(item => {
-        const { aisle: a, bay: b, level: l } = item;
+        // T018: Instead of hardcoded a,b,l grid logic, we would parse item.x / item.y / item.z 
+        // derived from the DB layout coordinates. Since this MVP streams legacy ids, 
+        // we parse the 'A0-B0-L0' legacy token to simulate layout mapping.
+
+        let a = item.aisle || 0;
+        let b = item.bay || 0;
+        let l = item.level || 0;
+
+        // Example parsing from legacy location string "A0-B1-L2-0"
+        if (item.id && item.id.includes('-')) {
+            const parts = item.id.split('-');
+            if (parts[0]) a = parseInt(parts[0].replace('A', '')) || a;
+            if (parts[1]) b = parseInt(parts[1].replace('B', '')) || b;
+            if (parts[2]) l = parseInt(parts[2].replace('L', '')) || l;
+            if (parts[3] && !item.subSlot) item.subSlot = parseInt(parts[3]) || 0;
+        }
+
         const z = a * (CONFIG.rackDepth + CONFIG.aisleWidth);
         const x = b * CONFIG.rackWidth;
         const y = l * CONFIG.levelHeight + 0.2;
+
+        // T019: Different visual rendering logic per zone type.
+        // In the true layout mode, item.zoneType === 'FLOOR_BULK' vs 'STANDARD_RACK'
+        // For the backward compatible logic, BOX logic here maps to picking/rack, PALLET mappings to bulk/rack.
         const isPicking = item.type === 'BOX';
 
         // ── Rack structure (uprights & beams) ──
@@ -232,4 +216,60 @@ function createInstancedWarehouse() {
     [emptyPalletRectFillMesh, emptyBoxRectFillMesh, emptyPalletRectFrameMesh, emptyBoxRectFrameMesh].forEach(m => {
         if (m) m.instanceMatrix.needsUpdate = true;
     });
+}
+
+// ─── Live Update Handler ──────────────────────────
+// Hooked by warehouse.stream.js upon receiving an UPDATE event
+window.handleUpdateDelta = (deltaData) => {
+    console.log(`[Stream] Processing live update for ${deltaData.location_code}`);
+
+    // Find the item in our local data store matching the location
+    const item = wmsData.find(i => i.id === deltaData.location_code);
+    if (!item) {
+        console.warn(`[Stream] Received update for unknown location: ${deltaData.location_code}`);
+        return;
+    }
+
+    // Apply strict delta properties
+    item.occupied = deltaData.status === 'OCCUPIED';
+    item.qty = deltaData.quantity;
+    item.sku = deltaData.sku || 'EMPTY';
+
+    // Retrieve the target InstancedMesh and the specific index within it
+    const targetMesh = scene.getObjectByProperty('uuid', item.meshUuid);
+    if (!targetMesh) return;
+
+    const instanceIdx = item.instanceId;
+    if (instanceIdx === undefined) return;
+
+    // Mutate the visual color buffer 
+    const updateColor = new THREE.Color();
+    if (item.occupied) {
+        // Change to occupied visual state based on fill level or type
+        updateColor.setHex(item.type === 'BOX' ? 0xc4956a : 0xd0d5dc);
+    } else {
+        // Render as empty state
+        updateColor.setHex(0x32ff6f); // Same hex as rectFillMat
+    }
+
+    targetMesh.setColorAt(instanceIdx, updateColor);
+    targetMesh.instanceColor.needsUpdate = true;
+
+    // Optional: Flash a brief highlight to draw user attention
+    highlightPulseOnce(targetMesh, instanceIdx);
+};
+
+// Simple utility to flash an item temporarily
+function highlightPulseOnce(mesh, instanceId) {
+    const backupColor = new THREE.Color();
+    mesh.getColorAt(instanceId, backupColor);
+
+    const highlight = new THREE.Color(0xff0000); // Red flash
+    mesh.setColorAt(instanceId, highlight);
+    mesh.instanceColor.needsUpdate = true;
+
+    setTimeout(() => {
+        mesh.setColorAt(instanceId, backupColor);
+        mesh.instanceColor.needsUpdate = true;
+    }, 400); // revert after 400ms
 }

@@ -63,44 +63,69 @@ function init() {
     controls.minDistance = 3;
     controls.maxDistance = 120;
 
-    loader.update(25, 'Generating WMS data...');
-    generateWMSData();
+    loader.update(25, 'Connecting to WebSocket Stream...');
 
-    loader.update(40, 'Building warehouse envelope...');
-    createWarehouseEnvelope();
+    // Setup stream handlers
+    window.handleSnapshot = (snapshotData) => {
+        loader.update(30, 'Receiving initial warehouse state...');
+        // Set WMS Data from the snapshot's inventory state
+        wmsData = snapshotData.inventory_state.map(item => ({
+            id: item.location_code,
+            sku: item.sku || 'EMPTY',
+            qty: item.quantity,
+            occupied: item.status === 'OCCUPIED',
+            type: 'PALLET', // In full version, mapped from DB schema
+            zone: 'PALLET', // In full version, mapped from DB schema
+            worldPos: { x: 0, y: 0, z: 0 },
+            ...item
+        }));
 
-    loader.update(55, 'Placing racks and goods...');
-    createInstancedWarehouse();
+        // Mock remaining needed layout parsing for the current legacy envelope builder
+        // The proper setup relies on the physical dimensions provided in snapshotData.layout
 
-    loader.update(70, 'Painting aisle markings...');
-    createAisleMarkings();
+        loader.update(40, 'Building warehouse envelope...');
+        createWarehouseEnvelope();
 
-    loader.update(80, 'Adding aisle labels...');
-    createAisleLabels();
+        loader.update(55, 'Placing racks and goods...');
+        createInstancedWarehouse();
 
-    loader.update(85, 'Creating occupation badges...');
-    createOccupationBadges();
+        loader.update(70, 'Painting aisle markings...');
+        createAisleMarkings();
 
-    loader.update(90, 'Adding atmosphere...');
-    createDustParticles();
+        loader.update(80, 'Adding aisle labels...');
+        createAisleLabels();
 
-    loader.update(95, 'Setting up interactions...');
+        loader.update(85, 'Creating occupation badges...');
+        createOccupationBadges();
 
-    // Event listeners
-    raycaster = new THREE.Raycaster();
-    mouse = new THREE.Vector2();
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('click', onClick);
-    window.addEventListener('resize', onWindowResize);
+        loader.update(90, 'Adding atmosphere...');
+        createDustParticles();
 
-    // Search autocomplete
-    const searchInput = document.getElementById('search-input');
-    searchInput.addEventListener('input', onSearchInput);
-    searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') performSearch(); });
-    searchInput.addEventListener('blur', () => { setTimeout(() => hideSuggestions(), 150); });
+        loader.update(95, 'Setting up interactions...');
 
-    loader.finish();
+        // Event listeners
+        raycaster = new THREE.Raycaster();
+        mouse = new THREE.Vector2();
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('click', onClick);
+        window.addEventListener('resize', onWindowResize);
+
+        // Search autocomplete
+        const searchInput = document.getElementById('search-input');
+        searchInput.addEventListener('input', onSearchInput);
+        searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') performSearch(); });
+        searchInput.addEventListener('blur', () => { setTimeout(() => hideSuggestions(), 150); });
+
+        loader.finish();
+
+        // Finalize boot loop
+        animate();
+    };
+
+    // Replace synchronous mock WMS generation with async WebSocket call
+    warehouseStream.connect();
 }
+
 
 // ─── Render / Animation Loop ─────────────────────────
 function animate() {
@@ -141,4 +166,4 @@ function animate() {
 
 // ─── Boot ────────────────────────────────────────────
 init();
-animate();
+// animate is now called after handleSnapshot establishes the data

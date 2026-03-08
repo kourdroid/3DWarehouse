@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.venv/
+venv/
+ENV/
+
+# Environment
+.env
+.env.*
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.tmp
+
+# Logs
+*.log
+backend/pip_log.txt
+backend/pip_redis.log
+backend/pytest-out.txt
+
+# Temp debug scripts
+backend/test_ws.py
+backend/test_http.py
+backend/list_routes.py
+backend/diag_routes.py
+backend/read_docx.py
+backend/read_docx_advanced.py
