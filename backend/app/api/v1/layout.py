@@ -1,14 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session # Keep Session for non-async endpoints
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 from typing import List, Dict, Any
 
-# Mock dependency for the scope of this implementation
-# In the real app, this would be `from app.api.dependencies import get_db`
-def get_db():
-    pass
-
-from app.models.layout import WarehouseLayout, Zone, Aisle, RackBay, StorageUnit
+from app.core.database import get_db
+from app.models.layout import WarehouseLayout, Zone, Aisle, RackBay, Level
+from app.schemas.layout import LayoutResponse
 
 router = APIRouter()
 
@@ -19,31 +18,21 @@ async def create_layout(payload: Dict[str, Any], db: Session = Depends(get_db)):
     # omitted for brevity in this MVP stage; assume it accepts a deep JSON config
     return {"message": "Layout created", "id": "mocked-uuid"}
 
-@router.get("/layouts/{layout_id}")
-async def get_layout(layout_id: str, db: Session = Depends(get_db)):
-    """Retrieve the full physical configuration for the 3D builder."""
-    layout = db.query(WarehouseLayout).filter(WarehouseLayout.id == layout_id).first()
+@router.get("/layouts/structure", response_model=LayoutResponse)
+async def get_structure(db: AsyncSession = Depends(get_db)):
+    """Retrieve the full nested physical configuration for the 3D builder."""
+    stmt = select(WarehouseLayout).options(
+        selectinload(WarehouseLayout.zones)
+        .selectinload(Zone.aisles)
+        .selectinload(Aisle.rack_bays)
+        .selectinload(RackBay.levels)
+    )
+    result = await db.execute(stmt)
+    layout = result.scalars().first()
+    
     if not layout:
-        # Mocking the return data structure required by the frontend
-        return {
-            "id": layout_id,
-            "name": "Main Facility 1",
-            "total_width_meters": 50.0,
-            "total_length_meters": 100.0,
-            "zones": [
-                {
-                    "id": "zone-1",
-                    "name": "Pallet Picking A1",
-                    "color_hex": "#2563eb",
-                    "storage_type": "STANDARD_RACK",
-                    "position_x_meters": 0.0,
-                    "position_z_meters": 0.0,
-                    "width_meters": 20.0,
-                    "length_meters": 50.0,
-                    "aisles": []
-                }
-            ]
-        }
+        raise HTTPException(status_code=404, detail="No layout configured")
+        
     return layout
 
 @router.put("/layouts/{layout_id}")

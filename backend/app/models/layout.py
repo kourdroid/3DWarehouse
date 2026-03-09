@@ -5,7 +5,7 @@ from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Foreig
 from sqlalchemy.orm import declarative_base, relationship
 from sqlalchemy.dialects.postgresql import UUID
 
-Base = declarative_base()
+LayoutBase = declarative_base()
 
 class StorageType(str, Enum):
     STANDARD_RACK = "STANDARD_RACK"
@@ -15,7 +15,7 @@ class AisleOrientation(str, Enum):
     NORTH_SOUTH = "NORTH_SOUTH"
     EAST_WEST = "EAST_WEST"
 
-class WarehouseLayout(Base):
+class WarehouseLayout(LayoutBase):
     __tablename__ = "warehouse_layout"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -28,7 +28,7 @@ class WarehouseLayout(Base):
     zones = relationship("Zone", back_populates="layout", cascade="all, delete-orphan")
 
 
-class Zone(Base):
+class Zone(LayoutBase):
     __tablename__ = "zone"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -46,7 +46,7 @@ class Zone(Base):
     storage_units = relationship("StorageUnit", back_populates="zone", cascade="all, delete-orphan")
 
 
-class Aisle(Base):
+class Aisle(LayoutBase):
     __tablename__ = "aisle"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -60,7 +60,7 @@ class Aisle(Base):
     rack_bays = relationship("RackBay", back_populates="aisle", cascade="all, delete-orphan")
 
 
-class RackBay(Base):
+class RackBay(LayoutBase):
     __tablename__ = "rack_bay"
     
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -70,10 +70,23 @@ class RackBay(Base):
     width_meters = Column(Float, nullable=False)
 
     aisle = relationship("Aisle", back_populates="rack_bays")
+    levels = relationship("Level", back_populates="bay", cascade="all, delete-orphan", order_by="Level.level_number")
     storage_units = relationship("StorageUnit", back_populates="bay", cascade="all, delete-orphan")
 
 
-class StorageUnit(Base):
+class Level(LayoutBase):
+    __tablename__ = "level"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    bay_id = Column(UUID(as_uuid=True), ForeignKey("rack_bay.id", ondelete="CASCADE"), nullable=False)
+    level_number = Column(Integer, nullable=False)
+    height_meters = Column(Float, nullable=False)
+    max_weight_kg = Column(Float, nullable=False, default=1000.0)
+
+    bay = relationship("RackBay", back_populates="levels")
+
+
+class StorageUnit(LayoutBase):
     """
     The atomic physical location in the warehouse.
     """

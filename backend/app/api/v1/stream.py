@@ -21,6 +21,12 @@ def validate_token(token: str) -> bool:
     except ValidationError:
         return False
 
+from app.core.database import AsyncSessionLocal
+from app.models.layout import WarehouseLayout, Zone, Aisle, RackBay, StorageUnit
+from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
+from app.schemas.layout import LayoutResponse
+
 @router.websocket("/stream")
 async def warehouse_stream(websocket: WebSocket, token: str = Query(...)):
     if not validate_token(token):
@@ -32,17 +38,42 @@ async def warehouse_stream(websocket: WebSocket, token: str = Query(...)):
     logger.info("WebSocket connection established")
     
     # 1. Send the initial snapshot immediately
-    # (Mocked for now until standard logic is connected)
+    import random
+    async with AsyncSessionLocal() as session:
+        # Fetch layout structure
+        stmt = select(WarehouseLayout).options(
+            selectinload(WarehouseLayout.zones)
+            .selectinload(Zone.aisles)
+            .selectinload(Aisle.rack_bays)
+            .selectinload(RackBay.levels)
+        )
+        result = await session.execute(stmt)
+        layout = result.scalars().first()
+        layout_dict = LayoutResponse.model_validate(layout).model_dump(mode="json") if layout else None
+
+        # Fetch all storage units and randomize occupancy for demo
+        units_result = await session.execute(select(StorageUnit).where(StorageUnit.is_active == True))
+        all_units = units_result.scalars().all()
+        
+        inventory_state = []
+        location_codes = []  # Cache for mock updater
+        for unit in all_units:
+            is_occupied = random.random() > 0.4  # ~60% occupied
+            location_codes.append(unit.location_code)
+            inventory_state.append({
+                "storage_unit_id": str(unit.id),
+                "location_code": unit.location_code,
+                "status": "OCCUPIED" if is_occupied else "EMPTY",
+                "fill_percentage": 100 if is_occupied else 0,
+                "sku": f"SKU-{random.randint(1000, 9999)}" if is_occupied else None,
+                "quantity": random.randint(1, 200) if is_occupied else 0
+            })
+
     initial_snapshot = {
         "event": "SNAPSHOT",
         "data": {
-            "layout": {
-                "id": "uuid-123",
-                "name": "Main Facility",
-                "dimensions": { "width": 100.0, "length": 250.0 },
-                "zones": []
-            },
-            "inventory_state": []
+            "layout": layout_dict,
+            "inventory_state": inventory_state
         }
     }
     await websocket.send_json(initial_snapshot)
@@ -55,16 +86,12 @@ async def warehouse_stream(websocket: WebSocket, token: str = Query(...)):
     # Task to forward message from Redis to Client
     async def forward_messages():
         try:
-            import random
             while True:
-                # Simulate a random inventory update every 500ms
                 await asyncio.sleep(0.5)
-                mock_aisle = random.randint(0, 5)
-                mock_bay = random.randint(0, 11)
-                mock_level = random.randint(0, 5)
-                mock_slot = random.choice([0, 1, 2, 3]) if mock_aisle >= 3 else 0
-                mock_loc = f"A{mock_aisle}-B{mock_bay}-L{mock_level}-{mock_slot}"
-                
+                if not location_codes:
+                    continue
+                # Pick a real location code from the database
+                mock_loc = random.choice(location_codes)
                 is_occupied = random.random() > 0.5
                 
                 update_event = {

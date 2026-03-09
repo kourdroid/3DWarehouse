@@ -80,14 +80,18 @@ function init() {
             ...item
         }));
 
-        // Mock remaining needed layout parsing for the current legacy envelope builder
-        // The proper setup relies on the physical dimensions provided in snapshotData.layout
-
-        loader.update(40, 'Building warehouse envelope...');
-        createWarehouseEnvelope();
-
-        loader.update(55, 'Placing racks and goods...');
-        createInstancedWarehouse();
+        if (snapshotData.layout) {
+            loader.update(45, 'Building data-driven structure...');
+            buildStructureFromLayout(snapshotData.layout);
+        } else if (wmsData.length > 0) {
+            loader.update(40, 'Building legacy envelope...');
+            createWarehouseEnvelope();
+            loader.update(55, 'Placing legacy racks and goods...');
+            createInstancedWarehouse();
+        } else {
+            loader.status.innerHTML = "<span style='color: #ef4444;'>No warehouse configured. Please seed the database.</span>";
+            return;
+        }
 
         loader.update(70, 'Painting aisle markings...');
         createAisleMarkings();

@@ -41,6 +41,7 @@ const color = new THREE.Color();
 // WMS Data
 let wmsData = [];
 let itemLookup = {};
+let PHYSICAL_MAP = {}; // Map logical location code to physical 3D properties and instance index
 
 // Camera Animation
 let isAnimatingCamera = false;

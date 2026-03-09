@@ -1,7 +1,9 @@
 // ═══════════════════════════════════════════════════════
-//  SMATCH WAREHOUSE — CONFIG & CONSTANTS
-//  Centralized configuration values. Edit here to scale
-//  the warehouse without touching application logic.
+//  SMATCH WAREHOUSE — CONFIGURATION
+//  Global dimensional constants.
+//  NOTE: These now serve as FALLBACK defaults if the 
+//  server's Layout API is unavailable or empty.
+//  The true coordinates are delivered via WebSocket.
 // ═══════════════════════════════════════════════════════
 
 const CONFIG = {
