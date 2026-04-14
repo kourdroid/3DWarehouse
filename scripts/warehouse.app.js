@@ -169,5 +169,5 @@ function animate() {
 }
 
 // ─── Boot ────────────────────────────────────────────
-init();
+// init is called by main.js router
 // animate is now called after handleSnapshot establishes the data

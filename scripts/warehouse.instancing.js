@@ -129,8 +129,18 @@ function buildRackZone(zone, counter) {
                 beamMesh.setColorAt(counter.beam++, zoneColor);
 
                 // Register physical coordinates map for live updates
-                const locCode = `${bay.identifier}-L${level.level_number}`;
-                PHYSICAL_MAP[locCode] = { x: bx + bay.width_meters / 2, y: ly, z: bz };
+                const perPalletWidth = bay.width_meters / bay.pallets_per_bay;
+
+                for (let p_idx = 0; p_idx < bay.pallets_per_bay; p_idx++) {
+                    let locCode = `${bay.identifier}-L${level.level_number}`;
+                    if (bay.pallets_per_bay > 1) {
+                        locCode += `-P${p_idx + 1}`;
+                    }
+
+                    // Offset center of this specific pallet slot
+                    const palletCenterX = bx + (p_idx * perPalletWidth) + (perPalletWidth / 2);
+                    PHYSICAL_MAP[locCode] = { x: palletCenterX, y: ly, z: bz };
+                }
             });
         });
     });

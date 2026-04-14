@@ -10,11 +10,38 @@ from app.core.redis import subscribe_channel
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+# ─── WebSocket Connection Manager ──────────────────
+# Used by configure.py to broadcast layout updates to all connected viewers
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: list[WebSocket] = []
+
+    async def connect(self, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections.append(websocket)
+
+    def disconnect(self, websocket: WebSocket):
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+
+    async def broadcast_json(self, data: dict):
+        disconnected = []
+        for connection in self.active_connections:
+            try:
+                await connection.send_json(data)
+            except Exception:
+                disconnected.append(connection)
+        for conn in disconnected:
+            self.disconnect(conn)
+
+manager = ConnectionManager()
+
 # T024: Pydantic Validation for incoming WebSocket connection token
 class AuthTokenSchema(BaseModel):
     token: str = Field(..., min_length=10, description="JWT Authentication Token from WMS")
 
 def validate_token(token: str) -> bool:
+    """MVP: Accept any token with 5+ chars. In production, verify JWT."""
     try:
         AuthTokenSchema(token=token)
         return True

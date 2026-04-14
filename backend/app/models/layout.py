@@ -3,9 +3,12 @@ from datetime import datetime
 from enum import Enum
 from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, ForeignKey, Enum as SQLEnum
 from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy.dialects.postgresql import UUID
 
 LayoutBase = declarative_base()
+
+# Portable UUID type — works on both SQLite and PostgreSQL
+def _new_uuid():
+    return str(uuid.uuid4())
 
 class StorageType(str, Enum):
     STANDARD_RACK = "STANDARD_RACK"
@@ -18,7 +21,7 @@ class AisleOrientation(str, Enum):
 class WarehouseLayout(LayoutBase):
     __tablename__ = "warehouse_layout"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(String(36), primary_key=True, default=_new_uuid)
     name = Column(String(255), nullable=False)
     total_width_meters = Column(Float, nullable=False)
     total_length_meters = Column(Float, nullable=False)
@@ -31,8 +34,8 @@ class WarehouseLayout(LayoutBase):
 class Zone(LayoutBase):
     __tablename__ = "zone"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    layout_id = Column(UUID(as_uuid=True), ForeignKey("warehouse_layout.id", ondelete="CASCADE"), nullable=False)
+    id = Column(String(36), primary_key=True, default=_new_uuid)
+    layout_id = Column(String(36), ForeignKey("warehouse_layout.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     color_hex = Column(String(7), nullable=False)
     storage_type = Column(SQLEnum(StorageType), nullable=False)
@@ -40,6 +43,8 @@ class Zone(LayoutBase):
     position_z_meters = Column(Float, nullable=False)
     width_meters = Column(Float, nullable=False)
     length_meters = Column(Float, nullable=False)
+    location_code_pattern = Column(String(255), nullable=False, default="{zone_name}-A{aisle_num:02d}-B{bay_num:03d}-L{level_num}")
+    floor_slots = Column(Integer, nullable=False, default=0)
 
     layout = relationship("WarehouseLayout", back_populates="zones")
     aisles = relationship("Aisle", back_populates="zone", cascade="all, delete-orphan")
@@ -49,8 +54,8 @@ class Zone(LayoutBase):
 class Aisle(LayoutBase):
     __tablename__ = "aisle"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    zone_id = Column(UUID(as_uuid=True), ForeignKey("zone.id", ondelete="CASCADE"), nullable=False)
+    id = Column(String(36), primary_key=True, default=_new_uuid)
+    zone_id = Column(String(36), ForeignKey("zone.id", ondelete="CASCADE"), nullable=False)
     identifier = Column(String(50), nullable=False)
     orientation = Column(SQLEnum(AisleOrientation), nullable=False)
     start_x_meters = Column(Float, nullable=False)
@@ -63,11 +68,12 @@ class Aisle(LayoutBase):
 class RackBay(LayoutBase):
     __tablename__ = "rack_bay"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    aisle_id = Column(UUID(as_uuid=True), ForeignKey("aisle.id", ondelete="CASCADE"), nullable=False)
+    id = Column(String(36), primary_key=True, default=_new_uuid)
+    aisle_id = Column(String(36), ForeignKey("aisle.id", ondelete="CASCADE"), nullable=False)
     identifier = Column(String(50), nullable=False)
     sequence_number = Column(Integer, nullable=False)
     width_meters = Column(Float, nullable=False)
+    pallets_per_bay = Column(Integer, nullable=False, default=1)
 
     aisle = relationship("Aisle", back_populates="rack_bays")
     levels = relationship("Level", back_populates="bay", cascade="all, delete-orphan", order_by="Level.level_number")
@@ -77,8 +83,8 @@ class RackBay(LayoutBase):
 class Level(LayoutBase):
     __tablename__ = "level"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    bay_id = Column(UUID(as_uuid=True), ForeignKey("rack_bay.id", ondelete="CASCADE"), nullable=False)
+    id = Column(String(36), primary_key=True, default=_new_uuid)
+    bay_id = Column(String(36), ForeignKey("rack_bay.id", ondelete="CASCADE"), nullable=False)
     level_number = Column(Integer, nullable=False)
     height_meters = Column(Float, nullable=False)
     max_weight_kg = Column(Float, nullable=False, default=1000.0)
@@ -92,11 +98,9 @@ class StorageUnit(LayoutBase):
     """
     __tablename__ = "storage_unit"
     
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    # Required for FLOOR_BULK
-    zone_id = Column(UUID(as_uuid=True), ForeignKey("zone.id", ondelete="CASCADE"), nullable=True)
-    # Required for STANDARD_RACK
-    bay_id = Column(UUID(as_uuid=True), ForeignKey("rack_bay.id", ondelete="CASCADE"), nullable=True)
+    id = Column(String(36), primary_key=True, default=_new_uuid)
+    zone_id = Column(String(36), ForeignKey("zone.id", ondelete="CASCADE"), nullable=True)
+    bay_id = Column(String(36), ForeignKey("rack_bay.id", ondelete="CASCADE"), nullable=True)
     
     location_code = Column(String(100), unique=True, nullable=False)
     level_number = Column(Integer, nullable=False, default=1)
