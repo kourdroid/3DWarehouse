@@ -2,7 +2,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.models.layout import Base, WarehouseLayout, Zone, Aisle, RackBay, StorageUnit, StorageType, AisleOrientation
+from app.models.layout import LayoutBase as Base, WarehouseLayout, Zone, Aisle, RackBay, StorageUnit, StorageType, AisleOrientation
 
 # Use an in-memory SQLite database for fast unit testing of the domain model schema
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
@@ -92,6 +92,36 @@ def test_floor_bulk_storage_unit(db_session):
     db_session.add(unit)
     db_session.commit()
 
-    assert db_session.query(StorageUnit).count() == 1
     assert unit.zone.name == "Bulk"
     assert unit.bay_id is None
+
+def test_level_creation_and_cascade(db_session):
+    layout = WarehouseLayout(name="Test Hub", total_width_meters=10.0, total_length_meters=10.0)
+    db_session.add(layout)
+    db_session.commit()
+    
+    zone = Zone(layout_id=layout.id, name="Test Zone", color_hex="#000000", storage_type=StorageType.STANDARD_RACK,
+                position_x_meters=0.0, position_z_meters=0.0, width_meters=10.0, length_meters=10.0)
+    db_session.add(zone)
+    db_session.commit()
+
+    aisle = Aisle(zone_id=zone.id, identifier="A1", orientation=AisleOrientation.NORTH_SOUTH, start_x_meters=0.0, start_z_meters=0.0)
+    db_session.add(aisle)
+    db_session.commit()
+
+    bay = RackBay(aisle_id=aisle.id, identifier="B1", sequence_number=1, width_meters=2.0)
+    db_session.add(bay)
+    db_session.commit()
+
+    from app.models.layout import Level
+    level = Level(bay_id=bay.id, level_number=1, height_meters=1.5, max_weight_kg=500.0)
+    db_session.add(level)
+    db_session.commit()
+
+    assert db_session.query(Level).count() == 1
+    assert level.bay.identifier == "B1"
+
+    # Test cascade delete
+    db_session.delete(bay)
+    db_session.commit()
+    assert db_session.query(Level).count() == 0

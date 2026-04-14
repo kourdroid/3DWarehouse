@@ -13,108 +13,118 @@
         rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://unpkg.com/konva@9/konva.min.js"></script>
 </head>
 
 <body>
 
-    <!-- Loading Screen -->
-    <div id="loading-screen">
-        <div class="loader-content">
-            <div class="loader-logo">SMATCH</div>
-            <div class="loader-sub">WAREHOUSE DIGITAL TWIN</div>
-            <div class="loader-bar-track">
-                <div class="loader-bar-fill" id="loader-bar"></div>
-            </div>
-            <div class="loader-status" id="loader-status">Initializing renderer...</div>
-        </div>
-    </div>
-
-    <!-- HUD Panel (Left) -->
-    <div id="ui-layer">
-        <div class="hud-panel">
-            <div class="hud-title-row">
-                <h1>SMATCH WAREHOUSE</h1>
-                <div class="hud-live-badge">● LIVE</div>
-            </div>
-            <div class="sub-text">DIGITAL TWIN // V3.0</div>
-
-            <!-- Search with Autocomplete -->
-            <div class="search-box">
-                <div class="search-wrapper">
-                    <input type="text" id="search-input" placeholder="Search ID (e.g., A0-B3...)" autocomplete="off">
-                    <div id="search-suggestions" class="search-suggestions"></div>
+    <div id="viewer-container">
+        <!-- Loading Screen -->
+        <div id="loading-screen">
+            <div class="loader-content">
+                <div class="loader-logo">SMATCH</div>
+                <div class="loader-sub">WAREHOUSE DIGITAL TWIN</div>
+                <div class="loader-bar-track">
+                    <div class="loader-bar-fill" id="loader-bar"></div>
                 </div>
-                <button class="search-btn" onclick="performSearch()">GO</button>
-            </div>
-
-            <div class="hud-stats">
-                <div class="stat-row"><span>TOTAL POSITIONS</span><span class="stat-val" id="stat-total">0</span></div>
-                <div class="stat-row"><span>OCCUPIED</span><span class="stat-val" id="stat-occupied">0</span></div>
-                <div class="stat-row"><span>PALLET ZONES</span><span class="stat-val">Aisle 1–3</span></div>
-                <div class="stat-row"><span>PICKING ZONES</span><span class="stat-val">Aisle 4–6</span></div>
+                <div class="loader-status" id="loader-status">Initializing renderer...</div>
             </div>
         </div>
 
-        <!-- Zone Legend with Filter Toggles -->
-        <div class="hud-panel hud-legend">
-            <div class="legend-title">ZONE FILTERS</div>
-            <label class="legend-toggle">
-                <input type="checkbox" checked data-zone="PALLET" onchange="toggleZoneFilter(this)">
-                <span class="legend-swatch" style="background:#2563eb"></span>
-                <span>Pallet Storage</span>
-            </label>
-            <label class="legend-toggle">
-                <input type="checkbox" checked data-zone="PICKING" onchange="toggleZoneFilter(this)">
-                <span class="legend-swatch" style="background:#f59e0b"></span>
-                <span>Picking Zone</span>
-            </label>
-            <label class="legend-toggle">
-                <input type="checkbox" checked data-zone="EMPTY" onchange="toggleEmptySlots(this)">
-                <span class="legend-swatch" style="background:#32ff6f"></span>
-                <span>Empty Slots</span>
-            </label>
+        <!-- HUD Panel (Left) -->
+        <div id="ui-layer">
+            <div class="hud-panel">
+                <div class="hud-title-row">
+                    <h1>SMATCH WAREHOUSE</h1>
+                    <div class="hud-live-badge">● LIVE</div>
+                </div>
+                <div class="sub-text">DIGITAL TWIN // V3.0</div>
+
+                <!-- Search with Autocomplete -->
+                <div class="search-box">
+                    <div class="search-wrapper">
+                        <input type="text" id="search-input" placeholder="Search ID (e.g., A0-B3...)"
+                            autocomplete="off">
+                        <div id="search-suggestions" class="search-suggestions"></div>
+                    </div>
+                    <button class="search-btn" onclick="performSearch()">GO</button>
+                </div>
+
+                <div class="hud-stats">
+                    <div class="stat-row"><span>TOTAL POSITIONS</span><span class="stat-val" id="stat-total">0</span>
+                    </div>
+                    <div class="stat-row"><span>OCCUPIED</span><span class="stat-val" id="stat-occupied">0</span></div>
+                    <div class="stat-row"><span>PALLET ZONES</span><span class="stat-val">Aisle 1–3</span></div>
+                    <div class="stat-row"><span>PICKING ZONES</span><span class="stat-val">Aisle 4–6</span></div>
+                </div>
+            </div>
+
+            <!-- Zone Legend with Filter Toggles -->
+            <div class="hud-panel hud-legend">
+                <div class="legend-title">ZONE FILTERS</div>
+                <label class="legend-toggle">
+                    <input type="checkbox" checked data-zone="PALLET" onchange="toggleZoneFilter(this)">
+                    <span class="legend-swatch" style="background:#2563eb"></span>
+                    <span>Pallet Storage</span>
+                </label>
+                <label class="legend-toggle">
+                    <input type="checkbox" checked data-zone="PICKING" onchange="toggleZoneFilter(this)">
+                    <span class="legend-swatch" style="background:#f59e0b"></span>
+                    <span>Picking Zone</span>
+                </label>
+                <label class="legend-toggle">
+                    <input type="checkbox" checked data-zone="EMPTY" onchange="toggleEmptySlots(this)">
+                    <span class="legend-swatch" style="background:#32ff6f"></span>
+                    <span>Empty Slots</span>
+                </label>
+            </div>
         </div>
-    </div>
 
-    <!-- Detail Panel (Right Side — shows on click) -->
-    <div id="detail-panel" class="detail-panel hidden">
-        <div class="detail-header">
-            <span class="detail-title">UNIT DETAIL</span>
-            <button class="detail-close" onclick="closeDetailPanel()">✕</button>
+        <!-- Detail Panel (Right Side — shows on click) -->
+        <div id="detail-panel" class="detail-panel hidden">
+            <div class="detail-header">
+                <span class="detail-title">UNIT DETAIL</span>
+                <button class="detail-close" onclick="closeDetailPanel()">✕</button>
+            </div>
+            <div class="detail-body">
+                <div class="detail-row"><span>ID</span><span id="dp-id">--</span></div>
+                <div class="detail-row"><span>TYPE</span><span id="dp-type">--</span></div>
+                <div class="detail-row"><span>ZONE</span><span id="dp-zone">--</span></div>
+                <div class="detail-row"><span>AISLE</span><span id="dp-aisle">--</span></div>
+                <div class="detail-row"><span>BAY</span><span id="dp-bay">--</span></div>
+                <div class="detail-row"><span>LEVEL</span><span id="dp-level">--</span></div>
+                <div class="detail-divider"></div>
+                <div class="detail-row"><span>SKU</span><span id="dp-sku" class="dp-highlight">--</span></div>
+                <div class="detail-row"><span>QUANTITY</span><span id="dp-qty" class="dp-highlight">--</span></div>
+                <div class="detail-row"><span>VELOCITY</span><span id="dp-velocity">--</span></div>
+                <div class="detail-divider"></div>
+                <div class="detail-row"><span>STATUS</span><span id="dp-status">--</span></div>
+            </div>
         </div>
-        <div class="detail-body">
-            <div class="detail-row"><span>ID</span><span id="dp-id">--</span></div>
-            <div class="detail-row"><span>TYPE</span><span id="dp-type">--</span></div>
-            <div class="detail-row"><span>ZONE</span><span id="dp-zone">--</span></div>
-            <div class="detail-row"><span>AISLE</span><span id="dp-aisle">--</span></div>
-            <div class="detail-row"><span>BAY</span><span id="dp-bay">--</span></div>
-            <div class="detail-row"><span>LEVEL</span><span id="dp-level">--</span></div>
-            <div class="detail-divider"></div>
-            <div class="detail-row"><span>SKU</span><span id="dp-sku" class="dp-highlight">--</span></div>
-            <div class="detail-row"><span>QUANTITY</span><span id="dp-qty" class="dp-highlight">--</span></div>
-            <div class="detail-row"><span>VELOCITY</span><span id="dp-velocity">--</span></div>
-            <div class="detail-divider"></div>
-            <div class="detail-row"><span>STATUS</span><span id="dp-status">--</span></div>
+
+        <!-- Hover Tooltip (lightweight) -->
+        <div id="tooltip">
+            <div class="tt-header">UNIT</div>
+            <div class="tt-row"><span>ID</span><span id="tt-id">--</span></div>
+            <div class="tt-row"><span>SKU</span><span id="tt-sku">--</span></div>
+            <div class="tt-row"><span>QTY</span><span id="tt-qty">--</span></div>
         </div>
-    </div>
 
-    <!-- Hover Tooltip (lightweight) -->
-    <div id="tooltip">
-        <div class="tt-header">UNIT</div>
-        <div class="tt-row"><span>ID</span><span id="tt-id">--</span></div>
-        <div class="tt-row"><span>SKU</span><span id="tt-sku">--</span></div>
-        <div class="tt-row"><span>QTY</span><span id="tt-qty">--</span></div>
-    </div>
+        <!-- Bottom Controls -->
+        <div id="controls">
+            <button class="btn btn-reset" onclick="resetView()">⟲ Reset View</button>
+            <button class="btn active" onclick="viewMode('normal', this)">Standard</button>
+            <button class="btn" onclick="viewMode('heatmap', this)">Heatmap</button>
+            <button class="btn" onclick="viewMode('occupation', this)">Occupation</button>
+            <div style="flex-grow:1;"></div>
+            <button class="btn" id="nav-builder-btn" onclick="window.location.hash='#/builder'" style="background:#8b5cf6; color:#fff; font-weight:bold;">✎ 2D BUILDER</button>
+        </div>
 
-    <!-- Bottom Controls -->
-    <div id="controls">
-        <button class="btn btn-reset" onclick="resetView()">⟲ Reset View</button>
-        <button class="btn active" onclick="viewMode('normal', this)">Standard</button>
-        <button class="btn" onclick="viewMode('heatmap', this)">Heatmap</button>
-        <button class="btn" onclick="viewMode('occupation', this)">Occupation</button>
-    </div>
+        <div id="canvas-container"></div>
+    </div> <!-- /viewer-container -->
 
-    <div id="canvas-container"></div>
+    <!-- Builder Container -->
+    <div id="builder-container" style="display: none;"></div>
 
     <!-- Warehouse Modules (loaded in dependency order) -->
     <!-- 1. Constants & Config     -->
@@ -131,6 +141,15 @@
     <script src="./scripts/warehouse.stream.js"></script>
     <!-- 7. App Boot & Render Loop -->
     <script src="./scripts/warehouse.app.js"></script>
+
+    <!-- Builder Modules -->
+    <script src="./scripts/builder/builder.commands.js"></script>
+    <script src="./scripts/builder/builder.api.js"></script>
+    <script src="./scripts/builder/builder.canvas.js"></script>
+    <script src="./scripts/builder/builder.panel.js"></script>
+
+    <!-- 8. Router & Entry Point -->
+    <script src="./scripts/main.js"></script>
 </body>
 
 </html>

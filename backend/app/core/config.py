@@ -6,8 +6,8 @@ class Settings(BaseSettings):
     API_V1_STR: str = "/api/v1"
     
     # Database
-    # Defaulting to an async in-memory SQLite database for zero-config local testing
-    DATABASE_URL: str = "sqlite+aiosqlite:///:memory:"
+    # Defaulting to an async SQLite database for zero-config local testing
+    DATABASE_URL: str = "sqlite+aiosqlite:///./warehouse.db"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

@@ -11,6 +11,202 @@ function generateWMSData() {
 }
 
 // ─── Instanced Warehouse ────────────────────────────
+function buildStructureFromLayout(layout) {
+    if (!layout || !layout.zones) return;
+
+    // 1. Calculate buffer sizes for InstancedMeshes
+    let totalBays = 0, totalLevels = 0, totalBulkFloorUnits = 100;
+    layout.zones.forEach(zone => {
+        if (zone.storage_type === 'STANDARD_RACK') {
+            zone.aisles.forEach(aisle => {
+                totalBays += aisle.rack_bays.length;
+                aisle.rack_bays.forEach(bay => {
+                    totalLevels += bay.levels.length;
+                });
+            });
+        }
+    });
+
+    // 2. Setup Geometries and Materials
+    const uprightGeo = new THREE.BoxGeometry(0.08, Math.max((totalLevels / Math.max(totalBays, 1)) * 1.5, 6), 0.08);
+    const beamGeo = new THREE.BoxGeometry(1.0, 0.10, 0.08); // Base 1m width, scaled per instance
+    const palletGoodsGeo = new THREE.BoxGeometry(1.1, 0.85, 1.1);
+    const palletBaseGeo = new THREE.BoxGeometry(1.2, 0.15, 1.2);
+    const floorMarkingGeo = new THREE.PlaneGeometry(1.2, 1.2);
+
+    const metalMat = new THREE.MeshStandardMaterial({ color: 0x3a4555, roughness: 0.35, metalness: 0.65 });
+    const beamMat = new THREE.MeshStandardMaterial({ color: 0xffc30d, roughness: 0.6, metalness: 0.15 });
+    const shrinkWrapMat = new THREE.MeshStandardMaterial({ color: 0xd8dde3, roughness: 0.25, metalness: 0.05, transparent: true, opacity: 0.88 });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x8B6914, roughness: 0.85 });
+    const floorZoneMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.9, transparent: true, opacity: 0.4 });
+
+    // 3. Initialize Shared InstancedMeshes
+    rackMesh = new THREE.InstancedMesh(uprightGeo, metalMat, totalBays * 2);
+    beamMesh = new THREE.InstancedMesh(beamGeo, beamMat, totalLevels * 2);
+    palletMesh = new THREE.InstancedMesh(palletGoodsGeo, shrinkWrapMat, totalLevels + totalBulkFloorUnits);
+    palletBaseMesh = new THREE.InstancedMesh(palletBaseGeo, woodMat, totalLevels + totalBulkFloorUnits);
+
+    // We repurpose emptyPalletRectFillMesh for Floor Bulk marking for simplicity in MVP
+    emptyPalletRectFillMesh = new THREE.InstancedMesh(floorMarkingGeo, floorZoneMat, totalBulkFloorUnits);
+
+    [rackMesh, beamMesh, palletMesh, palletBaseMesh].forEach(m => {
+        m.castShadow = true; m.receiveShadow = true;
+        scene.add(m);
+        instanceDataMap[m.uuid] = {};
+    });
+
+    emptyPalletRectFillMesh.rotation.x = -Math.PI / 2;
+    emptyPalletRectFillMesh.position.y = 0.01;
+    scene.add(emptyPalletRectFillMesh);
+
+    // Global Registry Counters
+    let counters = { rack: 0, beam: 0, pallet: 0, floor: 0 };
+
+    // 4. Dispatch construction per zone
+    layout.zones.forEach(zone => {
+        console.log(`[Layout] Zone: ${zone.name} (${zone.storage_type}) — ${zone.aisles ? zone.aisles.length : 0} aisles`);
+        if (zone.storage_type === 'STANDARD_RACK') {
+            buildRackZone(zone, counters);
+        } else if (zone.storage_type === 'FLOOR_BULK') {
+            buildFloorBulkZone(zone, counters);
+        }
+    });
+
+    console.log(`[Layout] Final counters — racks: ${counters.rack}, beams: ${counters.beam}, pallets: ${counters.pallet}, floor: ${counters.floor}`);
+    console.log(`[Layout] PHYSICAL_MAP has ${Object.keys(PHYSICAL_MAP).length} entries`);
+    console.log(`[Layout] wmsData has ${wmsData.length} items`);
+
+    // 5. Build Initial Inventory State
+    buildInitialInventory(counters);
+
+    // 6. Push Matrix updates to GPU
+    [rackMesh, beamMesh, palletMesh, palletBaseMesh, emptyPalletRectFillMesh].forEach(m => {
+        m.instanceMatrix.needsUpdate = true;
+        if (m.instanceColor) m.instanceColor.needsUpdate = true;
+    });
+}
+
+function buildRackZone(zone, counter) {
+    const zoneColor = new THREE.Color(zone.color_hex || 0x2563eb);
+
+    zone.aisles.forEach(aisle => {
+        aisle.rack_bays.forEach(bay => {
+            // Physical Anchors
+            const bx = zone.position_x_meters + aisle.start_x_meters + (bay.sequence_number * bay.width_meters);
+            const bz = zone.position_z_meters + aisle.start_z_meters;
+
+            // Uprights
+            dummy.scale.set(1, 1, 1);
+            dummy.rotation.set(0, 0, 0);
+
+            // Left Upright
+            dummy.position.set(bx, 3, bz);
+            dummy.updateMatrix();
+            rackMesh.setMatrixAt(counter.rack++, dummy.matrix);
+
+            // Right Upright
+            dummy.position.set(bx + bay.width_meters, 3, bz);
+            dummy.updateMatrix();
+            rackMesh.setMatrixAt(counter.rack++, dummy.matrix);
+
+            // Levels
+            bay.levels.forEach(level => {
+                const ly = level.height_meters * level.level_number + 0.2;
+
+                // Front and Back Beams, scaling width dynamically
+                dummy.scale.set(bay.width_meters, 1, 1);
+
+                // Front Beam
+                dummy.position.set(bx + bay.width_meters / 2, ly, bz + 0.5);
+                dummy.updateMatrix();
+                beamMesh.setMatrixAt(counter.beam, dummy.matrix);
+                beamMesh.setColorAt(counter.beam++, zoneColor);
+
+                // Back Beam
+                dummy.position.set(bx + bay.width_meters / 2, ly, bz - 0.5);
+                dummy.updateMatrix();
+                beamMesh.setMatrixAt(counter.beam, dummy.matrix);
+                beamMesh.setColorAt(counter.beam++, zoneColor);
+
+                // Register physical coordinates map for live updates
+                const perPalletWidth = bay.width_meters / bay.pallets_per_bay;
+
+                for (let p_idx = 0; p_idx < bay.pallets_per_bay; p_idx++) {
+                    let locCode = `${bay.identifier}-L${level.level_number}`;
+                    if (bay.pallets_per_bay > 1) {
+                        locCode += `-P${p_idx + 1}`;
+                    }
+
+                    // Offset center of this specific pallet slot
+                    const palletCenterX = bx + (p_idx * perPalletWidth) + (perPalletWidth / 2);
+                    PHYSICAL_MAP[locCode] = { x: palletCenterX, y: ly, z: bz };
+                }
+            });
+        });
+    });
+}
+
+function buildFloorBulkZone(zone, counter) {
+    const floorColor = new THREE.Color(zone.color_hex || 0xf59e0b);
+
+    // Simplistic scatter logic for floor mapping
+    let gridX = 0, gridZ = 0;
+
+    // This loops over generic Bulk IDs or if the WMS state matches
+    // But since the Layout API doesn't list individual floor slots,
+    // we use a predictable coordinate generator for BULK locations
+    for (let i = 0; i < 50; i++) {
+        const locCode = `BULK-${i}`;
+        const bx = zone.position_x_meters + gridX * 1.5;
+        const bz = zone.position_z_meters + gridZ * 1.5;
+
+        // Wrap grid
+        gridX++;
+        if (gridX * 1.5 > zone.width_meters) { gridX = 0; gridZ++; }
+
+        PHYSICAL_MAP[locCode] = { x: bx, y: 0, z: bz };
+
+        // Floor painting
+        dummy.position.set(bx, 0, bz);
+        dummy.scale.set(1, 1, 1);
+        dummy.updateMatrix();
+        emptyPalletRectFillMesh.setMatrixAt(counter.floor, dummy.matrix);
+        emptyPalletRectFillMesh.setColorAt(counter.floor++, floorColor);
+    }
+}
+
+function buildInitialInventory(counter) {
+    wmsData.forEach(item => {
+        const pLoc = PHYSICAL_MAP[item.id];
+        if (!pLoc) return; // Ignore items strictly outside our generated layout map
+
+        const pX = pLoc.x, pY = pLoc.y, pZ = pLoc.z;
+
+        if (item.occupied) {
+            const baseY = pY + 0.1;
+
+            // Pallet Base
+            dummy.position.set(pX, baseY, pZ);
+            dummy.updateMatrix();
+            palletBaseMesh.setMatrixAt(counter.pallet, dummy.matrix);
+
+            // Goods
+            const gY = baseY + 0.5;
+            dummy.position.set(pX, gY, pZ);
+            dummy.updateMatrix();
+            palletMesh.setMatrixAt(counter.pallet, dummy.matrix);
+
+            color.setHex(item.type === 'BOX' ? 0xc4956a : 0xd0d5dc);
+            palletMesh.setColorAt(counter.pallet, color);
+
+            // Registration
+            item.instanceId = counter.pallet;
+            item.meshUuid = palletMesh.uuid;
+            counter.pallet++;
+        }
+    });
+}
+
 function createInstancedWarehouse() {
     const totalBays = CONFIG.aisles * CONFIG.baysPerAisle;
     const totalLevels = totalBays * CONFIG.levels;
@@ -223,40 +419,35 @@ function createInstancedWarehouse() {
 window.handleUpdateDelta = (deltaData) => {
     console.log(`[Stream] Processing live update for ${deltaData.location_code}`);
 
-    // Find the item in our local data store matching the location
     const item = wmsData.find(i => i.id === deltaData.location_code);
-    if (!item) {
-        console.warn(`[Stream] Received update for unknown location: ${deltaData.location_code}`);
+
+    // If we've never seen it, and it maps to the physical map, register it
+    if (!item && PHYSICAL_MAP[deltaData.location_code]) {
+        console.log(`[Stream] Late registering location: ${deltaData.location_code}`);
+        // Memory resize for meshes is omitted for brevity in MVP/delta scope
+        return;
+    } else if (!item) {
         return;
     }
 
-    // Apply strict delta properties
     item.occupied = deltaData.status === 'OCCUPIED';
     item.qty = deltaData.quantity;
     item.sku = deltaData.sku || 'EMPTY';
 
-    // Retrieve the target InstancedMesh and the specific index within it
     const targetMesh = scene.getObjectByProperty('uuid', item.meshUuid);
-    if (!targetMesh) return;
+    if (!targetMesh || item.instanceId === undefined) return;
 
-    const instanceIdx = item.instanceId;
-    if (instanceIdx === undefined) return;
-
-    // Mutate the visual color buffer 
     const updateColor = new THREE.Color();
     if (item.occupied) {
-        // Change to occupied visual state based on fill level or type
         updateColor.setHex(item.type === 'BOX' ? 0xc4956a : 0xd0d5dc);
     } else {
-        // Render as empty state
-        updateColor.setHex(0x32ff6f); // Same hex as rectFillMat
+        updateColor.setHex(0x32ff6f);
     }
 
-    targetMesh.setColorAt(instanceIdx, updateColor);
+    targetMesh.setColorAt(item.instanceId, updateColor);
     targetMesh.instanceColor.needsUpdate = true;
 
-    // Optional: Flash a brief highlight to draw user attention
-    highlightPulseOnce(targetMesh, instanceIdx);
+    highlightPulseOnce(targetMesh, item.instanceId);
 };
 
 // Simple utility to flash an item temporarily
