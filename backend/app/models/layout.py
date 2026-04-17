@@ -5,7 +5,6 @@ from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, Foreig
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 
-# Alias so main.py keeps working — layout models now share the same metadata
 LayoutBase = Base
 
 # Portable UUID type — works on both SQLite and PostgreSQL
