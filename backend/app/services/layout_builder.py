@@ -1,7 +1,7 @@
 import math
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete
-from app.models.layout import WarehouseLayout, Zone, Aisle, RackBay, Level, StorageUnit, StorageType, AisleOrientation
+from app.models.layout import WarehouseLayout, LayoutZone, LayoutAisle, LayoutRackBay, LayoutLevel, LayoutStorageUnit, StorageType, AisleOrientation
 from typing import Dict, Any
 
 class LayoutBuilderService:
@@ -34,7 +34,7 @@ class LayoutBuilderService:
             layout.total_length_meters = payload["total_length_meters"]
             
             # Cascade delete all existing zones for this layout to rebuild
-            await self.db.execute(delete(Zone).where(Zone.layout_id == layout.id))
+            await self.db.execute(delete(LayoutZone).where(LayoutZone.layout_id == layout.id))
             await self.db.flush()
 
         # 2. Iterate Zones
@@ -47,7 +47,7 @@ class LayoutBuilderService:
 
         zones_data = payload.get("zones", [])
         for z_idx, z_data in enumerate(zones_data):
-            zone = Zone(
+            zone = LayoutZone(
                 layout_id=layout.id,
                 name=z_data.get("name", f"Zone {z_idx+1}"),
                 color_hex=z_data.get("color_hex", "#ffffff"),
@@ -71,7 +71,7 @@ class LayoutBuilderService:
                 spacing = z_data.get("spacing", 3.0)
 
                 for a_idx in range(aisle_count):
-                    aisle = Aisle(
+                    aisle = LayoutAisle(
                         zone_id=zone.id,
                         identifier=f"A{a_idx+1:02d}",
                         orientation=AisleOrientation.NORTH_SOUTH, # Hardcoded for now based on standard UI drop
@@ -82,7 +82,7 @@ class LayoutBuilderService:
                     await self.db.flush()
 
                     for b_idx in range(bays_per_aisle):
-                        bay = RackBay(
+                        bay = LayoutRackBay(
                             aisle_id=aisle.id,
                             identifier=f"B{b_idx+1:03d}",
                             sequence_number=b_idx + 1,
@@ -93,7 +93,7 @@ class LayoutBuilderService:
                         await self.db.flush()
 
                         for l_idx in range(level_count):
-                            level = Level(
+                            level = LayoutLevel(
                                 bay_id=bay.id,
                                 level_number=l_idx + 1,
                                 height_meters=l_idx * 1.5, # Assume 1.5m per level
@@ -114,7 +114,7 @@ class LayoutBuilderService:
                                 if pallets_per_bay > 1:
                                     loc_code += f"-P{p_idx+1}"
 
-                                su = StorageUnit(
+                                su = LayoutStorageUnit(
                                     zone_id=zone.id,
                                     bay_id=bay.id,
                                     location_code=loc_code,
@@ -153,7 +153,7 @@ class LayoutBuilderService:
                     x_idx = s_idx % grid_dim
                     z_idx_2 = s_idx // grid_dim
                     
-                    su = StorageUnit(
+                    su = LayoutStorageUnit(
                         zone_id=zone.id,
                         bay_id=None, # No bay
                         location_code=loc_code,

@@ -7,7 +7,8 @@ class Settings(BaseSettings):
     
     # Database
     # Defaulting to an async SQLite database for zero-config local testing
-    DATABASE_URL: str = "sqlite+aiosqlite:///./warehouse.db"
+    # DATABASE_URL: str = "sqlite+aiosqlite:///./warehouse.db"
+    DATABASE_URL: str = "postgresql+asyncpg://admin:admin@localhost:5432/warehouse"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

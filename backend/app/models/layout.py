@@ -2,9 +2,11 @@ import uuid
 from datetime import datetime
 from enum import Enum
 from sqlalchemy import Column, String, Float, Integer, Boolean, DateTime, ForeignKey, Enum as SQLEnum
-from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy.orm import relationship
+from app.core.database import Base
 
-LayoutBase = declarative_base()
+# Alias so main.py keeps working — layout models now share the same metadata
+LayoutBase = Base
 
 # Portable UUID type — works on both SQLite and PostgreSQL
 def _new_uuid():
@@ -18,7 +20,7 @@ class AisleOrientation(str, Enum):
     NORTH_SOUTH = "NORTH_SOUTH"
     EAST_WEST = "EAST_WEST"
 
-class WarehouseLayout(LayoutBase):
+class WarehouseLayout(Base):
     __tablename__ = "warehouse_layout"
     
     id = Column(String(36), primary_key=True, default=_new_uuid)
@@ -28,11 +30,11 @@ class WarehouseLayout(LayoutBase):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    zones = relationship("Zone", back_populates="layout", cascade="all, delete-orphan")
+    zones = relationship("LayoutZone", back_populates="layout", cascade="all, delete-orphan")
 
 
-class Zone(LayoutBase):
-    __tablename__ = "zone"
+class LayoutZone(Base):
+    __tablename__ = "layout_zone"
     
     id = Column(String(36), primary_key=True, default=_new_uuid)
     layout_id = Column(String(36), ForeignKey("warehouse_layout.id", ondelete="CASCADE"), nullable=False)
@@ -47,60 +49,60 @@ class Zone(LayoutBase):
     floor_slots = Column(Integer, nullable=False, default=0)
 
     layout = relationship("WarehouseLayout", back_populates="zones")
-    aisles = relationship("Aisle", back_populates="zone", cascade="all, delete-orphan")
-    storage_units = relationship("StorageUnit", back_populates="zone", cascade="all, delete-orphan")
+    aisles = relationship("LayoutAisle", back_populates="zone", cascade="all, delete-orphan")
+    storage_units = relationship("LayoutStorageUnit", back_populates="zone", cascade="all, delete-orphan")
 
 
-class Aisle(LayoutBase):
-    __tablename__ = "aisle"
+class LayoutAisle(Base):
+    __tablename__ = "layout_aisle"
     
     id = Column(String(36), primary_key=True, default=_new_uuid)
-    zone_id = Column(String(36), ForeignKey("zone.id", ondelete="CASCADE"), nullable=False)
+    zone_id = Column(String(36), ForeignKey("layout_zone.id", ondelete="CASCADE"), nullable=False)
     identifier = Column(String(50), nullable=False)
     orientation = Column(SQLEnum(AisleOrientation), nullable=False)
     start_x_meters = Column(Float, nullable=False)
     start_z_meters = Column(Float, nullable=False)
 
-    zone = relationship("Zone", back_populates="aisles")
-    rack_bays = relationship("RackBay", back_populates="aisle", cascade="all, delete-orphan")
+    zone = relationship("LayoutZone", back_populates="aisles")
+    rack_bays = relationship("LayoutRackBay", back_populates="aisle", cascade="all, delete-orphan")
 
 
-class RackBay(LayoutBase):
-    __tablename__ = "rack_bay"
+class LayoutRackBay(Base):
+    __tablename__ = "layout_rack_bay"
     
     id = Column(String(36), primary_key=True, default=_new_uuid)
-    aisle_id = Column(String(36), ForeignKey("aisle.id", ondelete="CASCADE"), nullable=False)
+    aisle_id = Column(String(36), ForeignKey("layout_aisle.id", ondelete="CASCADE"), nullable=False)
     identifier = Column(String(50), nullable=False)
     sequence_number = Column(Integer, nullable=False)
     width_meters = Column(Float, nullable=False)
     pallets_per_bay = Column(Integer, nullable=False, default=1)
 
-    aisle = relationship("Aisle", back_populates="rack_bays")
-    levels = relationship("Level", back_populates="bay", cascade="all, delete-orphan", order_by="Level.level_number")
-    storage_units = relationship("StorageUnit", back_populates="bay", cascade="all, delete-orphan")
+    aisle = relationship("LayoutAisle", back_populates="rack_bays")
+    levels = relationship("LayoutLevel", back_populates="bay", cascade="all, delete-orphan", order_by="LayoutLevel.level_number")
+    storage_units = relationship("LayoutStorageUnit", back_populates="bay", cascade="all, delete-orphan")
 
 
-class Level(LayoutBase):
-    __tablename__ = "level"
+class LayoutLevel(Base):
+    __tablename__ = "layout_level"
     
     id = Column(String(36), primary_key=True, default=_new_uuid)
-    bay_id = Column(String(36), ForeignKey("rack_bay.id", ondelete="CASCADE"), nullable=False)
+    bay_id = Column(String(36), ForeignKey("layout_rack_bay.id", ondelete="CASCADE"), nullable=False)
     level_number = Column(Integer, nullable=False)
     height_meters = Column(Float, nullable=False)
     max_weight_kg = Column(Float, nullable=False, default=1000.0)
 
-    bay = relationship("RackBay", back_populates="levels")
+    bay = relationship("LayoutRackBay", back_populates="levels")
 
 
-class StorageUnit(LayoutBase):
+class LayoutStorageUnit(Base):
     """
     The atomic physical location in the warehouse.
     """
-    __tablename__ = "storage_unit"
+    __tablename__ = "layout_storage_unit"
     
     id = Column(String(36), primary_key=True, default=_new_uuid)
-    zone_id = Column(String(36), ForeignKey("zone.id", ondelete="CASCADE"), nullable=True)
-    bay_id = Column(String(36), ForeignKey("rack_bay.id", ondelete="CASCADE"), nullable=True)
+    zone_id = Column(String(36), ForeignKey("layout_zone.id", ondelete="CASCADE"), nullable=True)
+    bay_id = Column(String(36), ForeignKey("layout_rack_bay.id", ondelete="CASCADE"), nullable=True)
     
     location_code = Column(String(100), unique=True, nullable=False)
     level_number = Column(Integer, nullable=False, default=1)
@@ -108,5 +110,5 @@ class StorageUnit(LayoutBase):
     max_weight_kg = Column(Float, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
 
-    zone = relationship("Zone", back_populates="storage_units")
-    bay = relationship("RackBay", back_populates="storage_units")
+    zone = relationship("LayoutZone", back_populates="storage_units")
+    bay = relationship("LayoutRackBay", back_populates="storage_units")

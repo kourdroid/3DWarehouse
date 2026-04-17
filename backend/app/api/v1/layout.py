@@ -6,7 +6,7 @@ from sqlalchemy.orm import selectinload
 from typing import List, Dict, Any
 
 from app.core.database import get_db
-from app.models.layout import WarehouseLayout, Zone, Aisle, RackBay, Level
+from app.models.layout import WarehouseLayout, LayoutZone, LayoutAisle, LayoutRackBay, LayoutLevel
 from app.schemas.layout import LayoutResponse
 
 router = APIRouter()
@@ -21,9 +21,9 @@ async def get_structure(db: AsyncSession = Depends(get_db)):
     """Retrieve the full nested physical configuration for the 3D builder."""
     stmt = select(WarehouseLayout).options(
         selectinload(WarehouseLayout.zones)
-        .selectinload(Zone.aisles)
-        .selectinload(Aisle.rack_bays)
-        .selectinload(RackBay.levels)
+        .selectinload(LayoutZone.aisles)
+        .selectinload(LayoutAisle.rack_bays)
+        .selectinload(LayoutRackBay.levels)
     )
     result = await db.execute(stmt)
     layout = result.scalars().first()

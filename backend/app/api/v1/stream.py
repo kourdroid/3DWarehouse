@@ -49,7 +49,7 @@ def validate_token(token: str) -> bool:
         return False
 
 from app.core.database import AsyncSessionLocal
-from app.models.layout import WarehouseLayout, Zone, Aisle, RackBay, StorageUnit
+from app.models.layout import WarehouseLayout, LayoutZone, LayoutAisle, LayoutRackBay, LayoutStorageUnit
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from app.schemas.layout import LayoutResponse
@@ -70,16 +70,16 @@ async def warehouse_stream(websocket: WebSocket, token: str = Query(...)):
         # Fetch layout structure
         stmt = select(WarehouseLayout).options(
             selectinload(WarehouseLayout.zones)
-            .selectinload(Zone.aisles)
-            .selectinload(Aisle.rack_bays)
-            .selectinload(RackBay.levels)
+            .selectinload(LayoutZone.aisles)
+            .selectinload(LayoutAisle.rack_bays)
+            .selectinload(LayoutRackBay.levels)
         )
         result = await session.execute(stmt)
         layout = result.scalars().first()
         layout_dict = LayoutResponse.model_validate(layout).model_dump(mode="json") if layout else None
 
         # Fetch all storage units and randomize occupancy for demo
-        units_result = await session.execute(select(StorageUnit).where(StorageUnit.is_active == True))
+        units_result = await session.execute(select(LayoutStorageUnit).where(LayoutStorageUnit.is_active == True))
         all_units = units_result.scalars().all()
         
         inventory_state = []

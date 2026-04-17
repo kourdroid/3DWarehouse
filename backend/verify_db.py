@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.models import Base
 
 async def verify_models():
+    print("*******************************************************")
     print("Testing SQLAlchemy Async Engine Memory Creation...")
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=True)
     
