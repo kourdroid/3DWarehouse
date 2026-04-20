@@ -3,9 +3,9 @@ from app.core.database import AsyncSessionLocal, engine
 from app.models.layout import LayoutBase, WarehouseLayout, LayoutZone, LayoutAisle, LayoutRackBay, LayoutLevel, LayoutStorageUnit, StorageType, AisleOrientation
 
 async def seed_data():
-    async with engine.begin() as conn:
-        await conn.run_sync(LayoutBase.metadata.drop_all)
-        await conn.run_sync(LayoutBase.metadata.create_all)
+    # async with engine.begin() as conn:
+    #     await conn.run_sync(LayoutBase.metadata.drop_all)
+    #     await conn.run_sync(LayoutBase.metadata.create_all)
 
     async with AsyncSessionLocal() as session:
         layout = WarehouseLayout(name="Main Facility", total_width_meters=50.0, total_length_meters=100.0)
