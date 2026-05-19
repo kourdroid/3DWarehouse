@@ -42,7 +42,7 @@ async def seed_data():
                 for l in range(4):
                     level = Level(
                         bay_id=bay.id, level_number=l,
-                        height_meters=1.5, max_weight_kg=1000.0
+                        height_meters=l * 1.5, max_weight_kg=1000.0
                     )
                     session.add(level)
                     await session.flush()

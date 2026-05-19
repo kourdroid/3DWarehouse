@@ -24,7 +24,7 @@ const BuilderPanel = {
         if (!container) return;
 
         const panelHTML = `
-            <div id="builder-panel" style="position: absolute; top: 0; right: 0; width: 320px; height: 100vh; background: #1a1e24; border-left: 1px solid #333; padding: 20px; color: #fff; z-index: 10; display: flex; flex-direction: column; font-family: 'Outfit', sans-serif;">
+            <div id="builder-panel" style="position: absolute; top: 0; right: 0; width: 320px; height: 100vh; background: #1a1e24; border-left: 1px solid #333; padding: 20px; color: #fff; z-index: 10; display: flex; flex-direction: column; font-family: 'Outfit', sans-serif; overflow-y: auto;">
                 <h2 style="margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #333; padding-bottom: 15px;">Macro Layout Tools</h2>
                 <p style="color:#9ca3af; font-size:0.82rem; line-height:1.35; margin:0;">Use this for warehouse footprint and zone placement. Use Excel import for exact rack, bay, level, and position mapping.</p>
                 
