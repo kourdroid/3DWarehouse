@@ -5,35 +5,76 @@
 //  view modes, aisle flythrough, pick path, camera reset.
 // ═══════════════════════════════════════════════════════
 
+function formatIndexedLabel(prefix, value) {
+    return Number.isInteger(value) ? `${prefix} ${value + 1}` : 'N/A';
+}
+
+function formatVelocityLabel(value) {
+    const normalized = Number.isFinite(value) ? value : 0;
+    const level = normalized > 0.7 ? 'HIGH' : normalized > 0.3 ? 'MED' : 'LOW';
+    return `${Math.round(normalized * 100)}% (${level})`;
+}
+
+function clearHoverState() {
+    const tooltip = document.getElementById('tooltip');
+    if (tooltip) {
+        tooltip.style.display = 'none';
+    }
+    document.body.style.cursor = 'default';
+}
+
 // ─── Mouse Hover (Tooltip) ──────────────────────────
 function onMouseMove(event) {
-    event.preventDefault();
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    hoverPointer.screenX = event.clientX;
+    hoverPointer.screenY = event.clientY;
+    hoverPointer.dirty = true;
 
-    if (isAnimatingCamera) return;
+    if (isAnimatingCamera) {
+        clearHoverState();
+    }
+}
 
+function updateHoverInteraction() {
+    if (isAnimatingCamera) {
+        hoverPointer.dirty = false;
+        clearHoverState();
+        return;
+    }
+
+    const now = performance.now();
+    if (!hoverPointer.dirty || now - lastHoverPickAt < 32) {
+        return;
+    }
+
+    lastHoverPickAt = now;
+    hoverPointer.dirty = false;
     raycaster.setFromCamera(mouse, camera);
+
     const intersection = raycaster.intersectObjects([palletMesh, boxMesh]);
     const tooltip = document.getElementById('tooltip');
 
-    if (intersection.length > 0) {
-        const hit = intersection[0];
-        const data = instanceDataMap[hit.object.uuid][hit.instanceId];
-        if (data) {
-            tooltip.style.display = 'block';
-            tooltip.style.left = (event.clientX + 18) + 'px';
-            tooltip.style.top = (event.clientY + 18) + 'px';
-            tooltip.style.transform = 'none';
-            document.getElementById('tt-id').innerText = data.id;
-            document.getElementById('tt-sku').innerText = data.sku;
-            document.getElementById('tt-qty').innerText = data.qty;
-            document.body.style.cursor = 'pointer';
-        }
-    } else {
-        tooltip.style.display = 'none';
-        document.body.style.cursor = 'default';
+    if (!intersection.length) {
+        clearHoverState();
+        return;
     }
+
+    const hit = intersection[0];
+    const data = instanceDataMap[hit.object.uuid][hit.instanceId];
+    if (!data) {
+        clearHoverState();
+        return;
+    }
+
+    tooltip.style.display = 'block';
+    tooltip.style.left = `${hoverPointer.screenX + 18}px`;
+    tooltip.style.top = `${hoverPointer.screenY + 18}px`;
+    tooltip.style.transform = 'none';
+    document.getElementById('tt-id').innerText = data.id;
+    document.getElementById('tt-sku').innerText = data.sku;
+    document.getElementById('tt-qty').innerText = data.qty;
+    document.body.style.cursor = 'pointer';
 }
 
 // ─── Click → Select or Flythrough ───────────────────
@@ -85,13 +126,13 @@ function selectItem(item) {
     document.getElementById('dp-id').innerText = item.id;
     document.getElementById('dp-type').innerText = item.type;
     document.getElementById('dp-zone').innerText = item.zone;
-    document.getElementById('dp-aisle').innerText = `Aisle ${item.aisle + 1}`;
-    document.getElementById('dp-bay').innerText = `Bay ${item.bay + 1}`;
-    document.getElementById('dp-level').innerText = `Level ${item.level}`;
+    document.getElementById('dp-aisle').innerText = formatIndexedLabel('Aisle', item.aisle);
+    document.getElementById('dp-bay').innerText = formatIndexedLabel('Bay', item.bay);
+    document.getElementById('dp-level').innerText = formatIndexedLabel('Level', item.level);
     document.getElementById('dp-sku').innerText = item.sku;
     document.getElementById('dp-qty').innerText = item.qty;
-    document.getElementById('dp-velocity').innerText = `${Math.round(item.velocity * 100)}% (${item.velocity > 0.7 ? 'HIGH' : item.velocity > 0.3 ? 'MED' : 'LOW'})`;
-    document.getElementById('dp-status').innerText = item.occupied ? '● OCCUPIED' : '○ EMPTY';
+    document.getElementById('dp-velocity').innerText = formatVelocityLabel(item.velocity);
+    document.getElementById('dp-status').innerText = item.occupied ? '● OCCUPIED' : `○ ${item.status || 'EMPTY'}`;
 
     drawPickPath(item);
 }
@@ -119,13 +160,15 @@ function drawPickPath(item) {
     }
     if (!item) return;
 
-    const z = item.aisle * (CONFIG.rackDepth + CONFIG.aisleWidth);
-    const ac = z + CONFIG.rackDepth / 2 + CONFIG.aisleWidth / 2;
+    const hasAisleIndex = Number.isInteger(item.aisle);
+    const ac = hasAisleIndex
+        ? item.aisle * (CONFIG.rackDepth + CONFIG.aisleWidth) + CONFIG.rackDepth / 2 + CONFIG.aisleWidth / 2
+        : item.worldPos.z;
 
     const points = [
-        new THREE.Vector3(-2, 0.1, -2),
-        new THREE.Vector3(-2, 0.1, ac - 1.5),
-        new THREE.Vector3(-0.5, 0.1, ac),
+        new THREE.Vector3(getWarehouseBounds().originX + 2, 0.1, getWarehouseBounds().originZ + 2),
+        new THREE.Vector3(getWarehouseBounds().originX + 2, 0.1, ac - 1.5),
+        new THREE.Vector3(item.worldPos.x - 1.2, 0.1, ac),
         new THREE.Vector3(item.worldPos.x, 0.1, ac),
     ];
 
@@ -147,12 +190,11 @@ function flyIntoAisle(aisleIdx) {
 }
 
 function resetView() {
-    cameraTargetPos.set(-15, 22, 35);
-    cameraTargetLookAt.set(
-        (CONFIG.baysPerAisle * CONFIG.rackWidth) / 2,
-        2,
-        (CONFIG.aisles * (CONFIG.rackDepth + CONFIG.aisleWidth)) / 2
-    );
+    const bounds = getWarehouseBounds();
+    const centerX = bounds.originX + bounds.width / 2;
+    const centerZ = bounds.originZ + bounds.depth / 2;
+    cameraTargetPos.set(centerX - bounds.width * 0.65, Math.max(18, bounds.height * 0.9), centerZ + bounds.depth * 0.8);
+    cameraTargetLookAt.set(centerX, 2, centerZ);
     isAnimatingCamera = true;
     deselectItem();
 }
@@ -219,26 +261,10 @@ function toggleEmptySlots(checkbox) {
 }
 
 function applyZoneVisibility() {
-    for (const [id, data] of Object.entries(instanceDataMap[palletMesh.uuid])) {
-        const idx = parseInt(id);
-        palletMesh.getMatrixAt(idx, dummy.matrix);
-        dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
-        dummy.scale.set(zoneVisibility.PALLET ? 1 : 0, zoneVisibility.PALLET ? 1 : 0, zoneVisibility.PALLET ? 1 : 0);
-        dummy.updateMatrix();
-        palletMesh.setMatrixAt(idx, dummy.matrix);
-    }
-    for (const [id, data] of Object.entries(instanceDataMap[boxMesh.uuid])) {
-        const idx = parseInt(id);
-        boxMesh.getMatrixAt(idx, dummy.matrix);
-        dummy.matrix.decompose(dummy.position, dummy.quaternion, dummy.scale);
-        dummy.scale.set(zoneVisibility.PICKING ? 1 : 0, zoneVisibility.PICKING ? 1 : 0, zoneVisibility.PICKING ? 1 : 0);
-        dummy.updateMatrix();
-        boxMesh.setMatrixAt(idx, dummy.matrix);
-    }
-    palletMesh.instanceMatrix.needsUpdate = true;
-    boxMesh.instanceMatrix.needsUpdate = true;
-
+    if (palletMesh) palletMesh.visible = zoneVisibility.PALLET;
     if (palletBaseMesh) palletBaseMesh.visible = zoneVisibility.PALLET;
+    if (palletCartonMesh) palletCartonMesh.visible = zoneVisibility.PALLET;
+    if (boxMesh) boxMesh.visible = zoneVisibility.PICKING;
     if (emptyPalletRectFillMesh) emptyPalletRectFillMesh.visible = zoneVisibility.EMPTY && zoneVisibility.PALLET;
     if (emptyBoxRectFillMesh) emptyBoxRectFillMesh.visible = zoneVisibility.EMPTY && zoneVisibility.PICKING;
     if (emptyPalletRectFrameMesh) emptyPalletRectFrameMesh.visible = zoneVisibility.EMPTY && zoneVisibility.PALLET;

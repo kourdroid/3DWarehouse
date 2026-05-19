@@ -4,6 +4,7 @@ from app.core.config import settings
 from app.api.v1 import api_router
 from contextlib import asynccontextmanager
 from app.core.database import engine
+from app.core.database import ensure_layout_schema_compat
 from app.core.database import Base # Logical WMS Models
 from app.models.layout import LayoutBase # Physical Layout Models
 
@@ -12,6 +13,7 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(LayoutBase.metadata.create_all)
+        await ensure_layout_schema_compat(conn)
     yield
 
 app = FastAPI(

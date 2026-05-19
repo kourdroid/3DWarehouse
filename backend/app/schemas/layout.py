@@ -1,7 +1,29 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
-from app.models.layout import StorageType, AisleOrientation
+from app.models.layout import StorageType, AisleOrientation, StorageKind, InventoryStatus
+
+class StorageUnitSchema(BaseModel):
+    id: str
+    location_code: str
+    level_number: int
+    position_number: int = 1
+    storage_kind: StorageKind = StorageKind.PALLET
+    x_meters: float
+    y_meters: float
+    z_meters: float
+    width_meters: float
+    depth_meters: float
+    height_meters: float
+    max_weight_kg: float
+    is_active: bool
+    status: InventoryStatus = InventoryStatus.EMPTY
+    sku: Optional[str] = None
+    quantity: int = 0
+    pallet_id: Optional[str] = None
+    last_updated_at: Optional[datetime] = None
+
+    model_config = {"from_attributes": True}
 
 class LevelSchema(BaseModel):
     id: str
@@ -16,6 +38,7 @@ class BaySchema(BaseModel):
     identifier: str
     sequence_number: int
     width_meters: float
+    depth_meters: float = 1.2
     pallets_per_bay: int = 1
     levels: List[LevelSchema] = []
 
@@ -27,12 +50,14 @@ class AisleSchema(BaseModel):
     orientation: AisleOrientation
     start_x_meters: float
     start_z_meters: float
+    spacing_meters: float = 0.0
     rack_bays: List[BaySchema] = []
 
     model_config = {"from_attributes": True}
 
 class ZoneSchema(BaseModel):
     id: str
+    code: Optional[str] = None
     name: str = Field(..., max_length=100)
     color_hex: str = Field(..., max_length=7)
     storage_type: StorageType
@@ -43,6 +68,7 @@ class ZoneSchema(BaseModel):
     location_code_pattern: str = "{zone_name}-A{aisle_num:02d}-B{bay_num:03d}-L{level_num}"
     floor_slots: int = Field(0, ge=0, le=10000)
     aisles: List[AisleSchema] = Field(default=[], max_length=100)
+    storage_units: List[StorageUnitSchema] = Field(default=[])
 
     model_config = {"from_attributes": True}
 

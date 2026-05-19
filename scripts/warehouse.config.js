@@ -34,3 +34,15 @@ const ZONE_COLORS = {
     PALLET: 0x2563eb,
     PICKING: 0xf59e0b,
 };
+
+function getWarehouseBounds() {
+    return warehouseBoundsOverride || WAREHOUSE;
+}
+
+function setWarehouseBoundsOverride(bounds) {
+    warehouseBoundsOverride = bounds;
+}
+
+function clearWarehouseBoundsOverride() {
+    warehouseBoundsOverride = null;
+}

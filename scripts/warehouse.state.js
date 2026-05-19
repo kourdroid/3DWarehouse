@@ -42,6 +42,7 @@ const color = new THREE.Color();
 let wmsData = [];
 let itemLookup = {};
 let PHYSICAL_MAP = {}; // Map logical location code to physical 3D properties and instance index
+let currentLayout = null;
 
 // Camera Animation
 let isAnimatingCamera = false;
@@ -50,6 +51,14 @@ let cameraTargetLookAt = new THREE.Vector3();
 
 // Zone visibility state
 let zoneVisibility = { PALLET: true, PICKING: true, EMPTY: true };
+
+// Runtime bounds override for data-driven layouts
+let warehouseBoundsOverride = null;
+
+// Interaction throttling
+let hoverPointer = { screenX: 0, screenY: 0, dirty: false };
+let lastHoverPickAt = 0;
+let dustAnimationTick = 0;
 
 // Loading screen helper
 const loader = {

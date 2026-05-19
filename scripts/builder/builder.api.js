@@ -4,7 +4,24 @@
 // ═══════════════════════════════════════════════════════
 
 const BuilderAPI = {
-    baseUrl: 'http://localhost:8000/api/v1',
+    baseUrl: (() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const apiBaseOverride = urlParams.get('apiBase');
+
+        if (apiBaseOverride) {
+            return apiBaseOverride.replace(/\/$/, '') + '/api/v1';
+        }
+
+        const isLocal =
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1';
+
+        if (isLocal && window.location.port === '3000') {
+            return `http://${window.location.hostname}:8000/api/v1`;
+        }
+
+        return `${window.location.origin}/api/v1`;
+    })(),
 
     async loadLayout(layoutId = 'default') {
         console.log(`[BuilderAPI] Loading layout ${layoutId}`);

@@ -7,7 +7,7 @@
 // ─── WMS Data Generation ────────────────────────────
 // Previously hardcoded. Now obsolete; replaced by WebSocket Snapshot.
 function generateWMSData() {
-    console.warn("generateWMSData called but is deprecated via WS integration.");
+    return [];
 }
 
 // ─── Instanced Warehouse ────────────────────────────
@@ -15,7 +15,7 @@ function buildStructureFromLayout(layout) {
     if (!layout || !layout.zones) return;
 
     // 1. Calculate buffer sizes for InstancedMeshes
-    let totalBays = 0, totalLevels = 0, totalBulkFloorUnits = 100;
+    let totalBays = 0, totalLevels = 0, totalBulkFloorUnits = Math.max(100, wmsData.length);
     layout.zones.forEach(zone => {
         if (zone.storage_type === 'STANDARD_RACK') {
             zone.aisles.forEach(aisle => {
@@ -38,16 +38,16 @@ function buildStructureFromLayout(layout) {
     const beamMat = new THREE.MeshStandardMaterial({ color: 0xffc30d, roughness: 0.6, metalness: 0.15 });
     const shrinkWrapMat = new THREE.MeshStandardMaterial({ color: 0xd8dde3, roughness: 0.25, metalness: 0.05, transparent: true, opacity: 0.88 });
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x8B6914, roughness: 0.85 });
-    const floorZoneMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.9, transparent: true, opacity: 0.4 });
+    const floorZoneMat = new THREE.MeshBasicMaterial({ color: 0x32ff6f, transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide });
 
     // 3. Initialize Shared InstancedMeshes
     rackMesh = new THREE.InstancedMesh(uprightGeo, metalMat, totalBays * 2);
     beamMesh = new THREE.InstancedMesh(beamGeo, beamMat, totalLevels * 2);
-    palletMesh = new THREE.InstancedMesh(palletGoodsGeo, shrinkWrapMat, totalLevels + totalBulkFloorUnits);
-    palletBaseMesh = new THREE.InstancedMesh(palletBaseGeo, woodMat, totalLevels + totalBulkFloorUnits);
+    palletMesh = new THREE.InstancedMesh(palletGoodsGeo, shrinkWrapMat, Math.max(totalLevels + totalBulkFloorUnits, 1));
+    palletBaseMesh = new THREE.InstancedMesh(palletBaseGeo, woodMat, Math.max(totalLevels + totalBulkFloorUnits, 1));
 
     // We repurpose emptyPalletRectFillMesh for Floor Bulk marking for simplicity in MVP
-    emptyPalletRectFillMesh = new THREE.InstancedMesh(floorMarkingGeo, floorZoneMat, totalBulkFloorUnits);
+    emptyPalletRectFillMesh = new THREE.InstancedMesh(floorMarkingGeo, floorZoneMat, Math.max(totalBulkFloorUnits * 2, 1));
 
     [rackMesh, beamMesh, palletMesh, palletBaseMesh].forEach(m => {
         m.castShadow = true; m.receiveShadow = true;
@@ -58,23 +58,19 @@ function buildStructureFromLayout(layout) {
     emptyPalletRectFillMesh.rotation.x = -Math.PI / 2;
     emptyPalletRectFillMesh.position.y = 0.01;
     scene.add(emptyPalletRectFillMesh);
+    instanceDataMap[emptyPalletRectFillMesh.uuid] = {};
 
     // Global Registry Counters
     let counters = { rack: 0, beam: 0, pallet: 0, floor: 0 };
 
     // 4. Dispatch construction per zone
     layout.zones.forEach(zone => {
-        console.log(`[Layout] Zone: ${zone.name} (${zone.storage_type}) — ${zone.aisles ? zone.aisles.length : 0} aisles`);
         if (zone.storage_type === 'STANDARD_RACK') {
             buildRackZone(zone, counters);
         } else if (zone.storage_type === 'FLOOR_BULK') {
             buildFloorBulkZone(zone, counters);
         }
     });
-
-    console.log(`[Layout] Final counters — racks: ${counters.rack}, beams: ${counters.beam}, pallets: ${counters.pallet}, floor: ${counters.floor}`);
-    console.log(`[Layout] PHYSICAL_MAP has ${Object.keys(PHYSICAL_MAP).length} entries`);
-    console.log(`[Layout] wmsData has ${wmsData.length} items`);
 
     // 5. Build Initial Inventory State
     buildInitialInventory(counters);
@@ -92,7 +88,7 @@ function buildRackZone(zone, counter) {
     zone.aisles.forEach(aisle => {
         aisle.rack_bays.forEach(bay => {
             // Physical Anchors
-            const bx = zone.position_x_meters + aisle.start_x_meters + (bay.sequence_number * bay.width_meters);
+            const bx = zone.position_x_meters + aisle.start_x_meters + ((bay.sequence_number - 1) * bay.width_meters);
             const bz = zone.position_z_meters + aisle.start_z_meters;
 
             // Uprights
@@ -111,7 +107,7 @@ function buildRackZone(zone, counter) {
 
             // Levels
             bay.levels.forEach(level => {
-                const ly = level.height_meters * level.level_number + 0.2;
+                const ly = level.height_meters + 0.2;
 
                 // Front and Back Beams, scaling width dynamically
                 dummy.scale.set(bay.width_meters, 1, 1);
@@ -177,7 +173,7 @@ function buildFloorBulkZone(zone, counter) {
 
 function buildInitialInventory(counter) {
     wmsData.forEach(item => {
-        const pLoc = PHYSICAL_MAP[item.id];
+        const pLoc = item.hasResolvedPosition ? item.worldPos : PHYSICAL_MAP[item.id];
         if (!pLoc) return; // Ignore items strictly outside our generated layout map
 
         const pX = pLoc.x, pY = pLoc.y, pZ = pLoc.z;
@@ -195,6 +191,7 @@ function buildInitialInventory(counter) {
             dummy.position.set(pX, gY, pZ);
             dummy.updateMatrix();
             palletMesh.setMatrixAt(counter.pallet, dummy.matrix);
+            item.worldPos = { x: pX, y: gY, z: pZ };
 
             color.setHex(item.type === 'BOX' ? 0xc4956a : 0xd0d5dc);
             palletMesh.setColorAt(counter.pallet, color);
@@ -202,9 +199,25 @@ function buildInitialInventory(counter) {
             // Registration
             item.instanceId = counter.pallet;
             item.meshUuid = palletMesh.uuid;
+            instanceDataMap[palletMesh.uuid][counter.pallet] = item;
             counter.pallet++;
+        } else if (emptyPalletRectFillMesh) {
+            dummy.position.set(pX, 0.02, pZ);
+            dummy.rotation.set(0, 0, 0);
+            dummy.scale.set(Math.max(item.widthMeters / 1.2, 0.2), Math.max(item.depthMeters / 1.2, 0.2), 1);
+            dummy.updateMatrix();
+            emptyPalletRectFillMesh.setMatrixAt(counter.floor, dummy.matrix);
+            color.setHex(item.status === 'BLOCKED' || item.status === 'DAMAGED' ? 0xef4444 : item.status === 'RESERVED' ? 0xf59e0b : 0x32ff6f);
+            emptyPalletRectFillMesh.setColorAt(counter.floor, color);
+            item.worldPos = { x: pX, y: 0.02, z: pZ };
+            item.instanceId = counter.floor;
+            item.meshUuid = emptyPalletRectFillMesh.uuid;
+            instanceDataMap[emptyPalletRectFillMesh.uuid][counter.floor] = item;
+            counter.floor++;
         }
     });
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, 1, 1);
 }
 
 function createInstancedWarehouse() {
@@ -237,8 +250,8 @@ function createInstancedWarehouse() {
     const shrinkWrapMat = new THREE.MeshStandardMaterial({ color: 0xd8dde3, roughness: 0.25, metalness: 0.05, transparent: true, opacity: 0.88 });
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x8B6914, roughness: 0.85 });
     const cardboardMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.78 });
-    const rectFillMat = new THREE.MeshBasicMaterial({ color: 0x32ff6f, transparent: true, opacity: 0.7, depthWrite: false, side: THREE.DoubleSide });
-    const rectEdgeMat = new THREE.MeshBasicMaterial({ color: 0x00ff66, transparent: true, opacity: 0.9 });
+    const rectFillMat = new THREE.MeshBasicMaterial({ color: 0x32ff6f, transparent: true, opacity: 0.1, depthWrite: false, side: THREE.DoubleSide });
+    const rectEdgeMat = new THREE.MeshBasicMaterial({ color: 0x00ff66, transparent: true, opacity: 0.65 });
 
     // ── Instanced Meshes ──
     rackMesh = new THREE.InstancedMesh(uprightGeo, metalMat, totalBays * 2);
@@ -417,20 +430,18 @@ function createInstancedWarehouse() {
 // ─── Live Update Handler ──────────────────────────
 // Hooked by warehouse.stream.js upon receiving an UPDATE event
 window.handleUpdateDelta = (deltaData) => {
-    console.log(`[Stream] Processing live update for ${deltaData.location_code}`);
-
     const item = wmsData.find(i => i.id === deltaData.location_code);
 
     // If we've never seen it, and it maps to the physical map, register it
     if (!item && PHYSICAL_MAP[deltaData.location_code]) {
-        console.log(`[Stream] Late registering location: ${deltaData.location_code}`);
         // Memory resize for meshes is omitted for brevity in MVP/delta scope
         return;
     } else if (!item) {
         return;
     }
 
-    item.occupied = deltaData.status === 'OCCUPIED';
+    item.status = deltaData.status || 'EMPTY';
+    item.occupied = item.status === 'OCCUPIED';
     item.qty = deltaData.quantity;
     item.sku = deltaData.sku || 'EMPTY';
 
@@ -440,6 +451,10 @@ window.handleUpdateDelta = (deltaData) => {
     const updateColor = new THREE.Color();
     if (item.occupied) {
         updateColor.setHex(item.type === 'BOX' ? 0xc4956a : 0xd0d5dc);
+    } else if (item.status === 'BLOCKED' || item.status === 'DAMAGED') {
+        updateColor.setHex(0xef4444);
+    } else if (item.status === 'RESERVED') {
+        updateColor.setHex(0xf59e0b);
     } else {
         updateColor.setHex(0x32ff6f);
     }
@@ -447,6 +462,9 @@ window.handleUpdateDelta = (deltaData) => {
     targetMesh.setColorAt(item.instanceId, updateColor);
     targetMesh.instanceColor.needsUpdate = true;
 
+    if (typeof updateHudStats === 'function') {
+        updateHudStats();
+    }
     highlightPulseOnce(targetMesh, item.instanceId);
 };
 

@@ -49,7 +49,7 @@ def validate_token(token: str) -> bool:
         return False
 
 from app.core.database import AsyncSessionLocal
-from app.models.layout import WarehouseLayout, Zone, Aisle, RackBay, StorageUnit
+from app.models.layout import InventoryStatus, WarehouseLayout, Zone, Aisle, RackBay, StorageUnit
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from app.schemas.layout import LayoutResponse
@@ -72,28 +72,50 @@ async def warehouse_stream(websocket: WebSocket, token: str = Query(...)):
             selectinload(WarehouseLayout.zones)
             .selectinload(Zone.aisles)
             .selectinload(Aisle.rack_bays)
-            .selectinload(RackBay.levels)
+            .selectinload(RackBay.levels),
+            selectinload(WarehouseLayout.zones).selectinload(Zone.storage_units),
         )
         result = await session.execute(stmt)
         layout = result.scalars().first()
         layout_dict = LayoutResponse.model_validate(layout).model_dump(mode="json") if layout else None
 
-        # Fetch all storage units and randomize occupancy for demo
+        # Fetch all storage units. Imported layouts carry real inventory state;
+        # seeded/demo layouts without inventory still get a local mock state.
         units_result = await session.execute(select(StorageUnit).where(StorageUnit.is_active == True))
         all_units = units_result.scalars().all()
+        has_imported_inventory = any(
+            unit.status != InventoryStatus.EMPTY or bool(unit.sku) or unit.quantity > 0
+            for unit in all_units
+        )
         
         inventory_state = []
         location_codes = []  # Cache for mock updater
         for unit in all_units:
-            is_occupied = random.random() > 0.4  # ~60% occupied
+            is_occupied = unit.status == InventoryStatus.OCCUPIED
+            status = unit.status.value
+            sku = unit.sku
+            quantity = unit.quantity
+            if not has_imported_inventory:
+                is_occupied = random.random() > 0.4  # ~60% occupied
+                status = "OCCUPIED" if is_occupied else "EMPTY"
+                sku = f"SKU-{random.randint(1000, 9999)}" if is_occupied else None
+                quantity = random.randint(1, 200) if is_occupied else 0
             location_codes.append(unit.location_code)
             inventory_state.append({
                 "storage_unit_id": str(unit.id),
                 "location_code": unit.location_code,
-                "status": "OCCUPIED" if is_occupied else "EMPTY",
+                "status": status,
                 "fill_percentage": 100 if is_occupied else 0,
-                "sku": f"SKU-{random.randint(1000, 9999)}" if is_occupied else None,
-                "quantity": random.randint(1, 200) if is_occupied else 0
+                "sku": sku,
+                "quantity": quantity,
+                "pallet_id": unit.pallet_id,
+                "storage_kind": unit.storage_kind.value,
+                "x_meters": unit.x_meters,
+                "y_meters": unit.y_meters,
+                "z_meters": unit.z_meters,
+                "width_meters": unit.width_meters,
+                "depth_meters": unit.depth_meters,
+                "height_meters": unit.height_meters,
             })
 
     initial_snapshot = {

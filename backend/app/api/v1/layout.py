@@ -23,7 +23,8 @@ async def get_structure(db: AsyncSession = Depends(get_db)):
         selectinload(WarehouseLayout.zones)
         .selectinload(Zone.aisles)
         .selectinload(Aisle.rack_bays)
-        .selectinload(RackBay.levels)
+        .selectinload(RackBay.levels),
+        selectinload(WarehouseLayout.zones).selectinload(Zone.storage_units),
     )
     result = await db.execute(stmt)
     layout = result.scalars().first()

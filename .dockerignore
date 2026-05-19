@@ -1,0 +1,14 @@
+.git
+.specify
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/*.log
+**/.pytest_cache
+**/venv
+**/.venv
+**/node_modules
+**/dist
+**/build
+backend/warehouse.db
