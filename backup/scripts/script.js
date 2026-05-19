@@ -23,7 +23,9 @@
         let pulseTime = 0;
 
         // InstancedMesh Containers
-        let rackMesh, beamMesh, palletMesh, boxMesh, emptyPalletRectFillMesh, emptyBoxRectFillMesh, emptyPalletRectFrameMesh, emptyBoxRectFrameMesh; 
+        let rackMesh, beamMesh, braceMesh, palletMesh, boxMesh, loadPalletMesh, boxPalletMesh, emptyPalletRectFillMesh, emptyBoxRectFillMesh, emptyPalletRectFrameMesh, emptyBoxRectFrameMesh; 
+        let warehouseShellMaterials = [];
+        let warehouseShellBounds = null;
         
         // Helper math objects
         const dummy = new THREE.Object3D();
@@ -145,72 +147,272 @@
             document.getElementById('stat-total').innerText = totalPositions.toLocaleString();
         }
 
+        function getWarehouseLayout() {
+            const width = CONFIG.baysPerAisle * CONFIG.rackWidth;
+            const minZ = -CONFIG.rackDepth / 2;
+            const maxZ = ((CONFIG.aisles - 1) * (CONFIG.rackDepth + CONFIG.aisleWidth)) + (CONFIG.rackDepth / 2);
+            const depth = maxZ - minZ;
+            const height = CONFIG.levels * CONFIG.levelHeight;
+
+            return {
+                width,
+                depth,
+                height,
+                minX: 0,
+                maxX: width,
+                minZ,
+                maxZ,
+                centerX: width / 2,
+                centerZ: minZ + (depth / 2)
+            };
+        }
+
+        function setInstanceTransform(mesh, index, x, y, z, scaleX, scaleY, scaleZ, rotX = 0, rotY = 0, rotZ = 0) {
+            dummy.position.set(x, y, z);
+            dummy.scale.set(scaleX, scaleY, scaleZ);
+            dummy.rotation.set(rotX, rotY, rotZ);
+            dummy.updateMatrix();
+            mesh.setMatrixAt(index, dummy.matrix);
+        }
+
+        function registerShellMaterial(material, baseOpacity) {
+            material.transparent = true;
+            material.opacity = baseOpacity;
+            warehouseShellMaterials.push({ material, baseOpacity });
+        }
+
+        function updateWarehouseShellVisibility() {
+            if (!warehouseShellBounds || warehouseShellMaterials.length === 0) return;
+
+            const target = controls ? controls.target : camera.position;
+            const isInExplorationZone =
+                target.x >= warehouseShellBounds.minX &&
+                target.x <= warehouseShellBounds.maxX &&
+                target.z >= warehouseShellBounds.minZ &&
+                target.z <= warehouseShellBounds.maxZ;
+
+            const isCameraInsideShell =
+                camera.position.x >= warehouseShellBounds.minX &&
+                camera.position.x <= warehouseShellBounds.maxX &&
+                camera.position.y <= warehouseShellBounds.maxY &&
+                camera.position.z >= warehouseShellBounds.minZ &&
+                camera.position.z <= warehouseShellBounds.maxZ;
+
+            const targetOpacity = (isInExplorationZone || isCameraInsideShell) ? 0.04 : 0.9;
+
+            warehouseShellMaterials.forEach(({ material, baseOpacity }) => {
+                material.opacity += ((baseOpacity * targetOpacity) - material.opacity) * 0.14;
+                material.depthWrite = material.opacity > 0.35;
+                material.needsUpdate = true;
+            });
+        }
+
+        function createWarehouseShell(layout) {
+            const wallThickness = 0.35;
+            const sidePadding = 5.5;
+            const backPadding = 4.5;
+            const ceilingY = layout.height + 1.2;
+            const roomHeight = layout.height + 3.5;
+            const roomDepth = layout.depth + (backPadding * 2);
+            const wallMat = new THREE.MeshStandardMaterial({
+                color: 0x242b31,
+                roughness: 0.88,
+                metalness: 0.08
+            });
+            const trimMat = new THREE.MeshStandardMaterial({
+                color: 0x4e5a64,
+                roughness: 0.55,
+                metalness: 0.45
+            });
+            const ceilingMat = new THREE.MeshStandardMaterial({
+                color: 0x303841,
+                roughness: 0.82,
+                metalness: 0.15
+            });
+            const glowMat = new THREE.MeshStandardMaterial({
+                color: 0xf4e3b1,
+                emissive: 0xf4ddb0,
+                emissiveIntensity: 1.2,
+                roughness: 0.45,
+                metalness: 0.1
+            });
+            registerShellMaterial(wallMat, 0.92);
+            registerShellMaterial(ceilingMat, 0.86);
+
+            warehouseShellBounds = {
+                minX: layout.minX - sidePadding + 0.8,
+                maxX: layout.maxX + sidePadding - 0.8,
+                minZ: layout.minZ - backPadding + 0.8,
+                maxZ: layout.maxZ + backPadding - 0.8,
+                maxY: roomHeight
+            };
+
+            const leftWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, roomHeight, roomDepth), wallMat);
+            leftWall.position.set(layout.minX - sidePadding, roomHeight / 2, layout.centerZ);
+            leftWall.receiveShadow = true;
+            scene.add(leftWall);
+
+            const rightWall = new THREE.Mesh(new THREE.BoxGeometry(wallThickness, roomHeight, roomDepth), wallMat);
+            rightWall.position.set(layout.maxX + sidePadding, roomHeight / 2, layout.centerZ);
+            rightWall.receiveShadow = true;
+            scene.add(rightWall);
+
+            const backWall = new THREE.Mesh(new THREE.BoxGeometry(layout.width + (sidePadding * 2), roomHeight, wallThickness), wallMat);
+            backWall.position.set(layout.centerX, roomHeight / 2, layout.minZ - backPadding);
+            backWall.receiveShadow = true;
+            scene.add(backWall);
+
+            const ceiling = new THREE.Mesh(
+                new THREE.PlaneGeometry(layout.width + (sidePadding * 2), roomDepth),
+                ceilingMat
+            );
+            ceiling.rotation.x = Math.PI / 2;
+            ceiling.position.set(layout.centerX, ceilingY, layout.centerZ);
+            ceiling.receiveShadow = true;
+            scene.add(ceiling);
+
+            for (let i = 0; i < 3; i++) {
+                const x = layout.minX + ((i + 0.5) * layout.width / 3);
+                const support = new THREE.Mesh(new THREE.BoxGeometry(0.18, roomHeight, 0.18), trimMat);
+                support.position.set(x, roomHeight / 2, layout.minZ - backPadding + 0.7);
+                support.castShadow = true;
+                support.receiveShadow = true;
+                scene.add(support);
+            }
+
+            const stripXPositions = [
+                layout.minX + (layout.width * 0.22),
+                layout.centerX,
+                layout.minX + (layout.width * 0.78)
+            ];
+            const lightCount = Math.max(CONFIG.aisles, 4);
+            for (const x of stripXPositions) {
+                for (let i = 0; i < lightCount; i++) {
+                    const z = layout.minZ + 1 + (i * (layout.depth - 2) / Math.max(lightCount - 1, 1));
+                    const lightPanel = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.08, 0.42), glowMat);
+                    lightPanel.position.set(x, ceilingY - 0.12, z);
+                    scene.add(lightPanel);
+
+                    const pointLight = new THREE.PointLight(0xffefc2, 0.5, 16, 2);
+                    pointLight.position.set(x, ceilingY - 0.45, z);
+                    scene.add(pointLight);
+                }
+            }
+        }
+
+        function addFloorMarkings(layout) {
+            const laneMat = new THREE.MeshStandardMaterial({
+                color: 0xf0c63c,
+                roughness: 0.7,
+                metalness: 0.05
+            });
+            const safetyMat = new THREE.MeshStandardMaterial({
+                color: 0x4fc3ff,
+                roughness: 0.55,
+                metalness: 0.1
+            });
+
+            for (let a = 0; a < CONFIG.aisles - 1; a++) {
+                const laneZ = (a * (CONFIG.rackDepth + CONFIG.aisleWidth)) + (CONFIG.rackDepth / 2) + (CONFIG.aisleWidth / 2);
+                const centerLine = new THREE.Mesh(new THREE.BoxGeometry(layout.width + 1.5, 0.02, 0.1), laneMat);
+                centerLine.position.set(layout.centerX, 0.01, laneZ);
+                centerLine.receiveShadow = true;
+                scene.add(centerLine);
+            }
+
+            const frontSafetyLine = new THREE.Mesh(new THREE.BoxGeometry(layout.width + 2.5, 0.02, 0.12), safetyMat);
+            frontSafetyLine.position.set(layout.centerX, 0.01, layout.maxZ + 1.2);
+            frontSafetyLine.receiveShadow = true;
+            scene.add(frontSafetyLine);
+        }
+
         function createInstancedWarehouse() {
+            const layout = getWarehouseLayout();
+            const warehouseHeight = layout.height;
+            const palletClusterCount = 3;
+            const palletSpacing = 0.82;
+            const palletOffsets = [-palletSpacing, 0, palletSpacing];
             const totalBays = CONFIG.aisles * CONFIG.baysPerAisle;
             const totalLevels = totalBays * CONFIG.levels;
-            const maxPallets = totalLevels; 
+            const maxPallets = totalLevels * palletClusterCount; 
             const maxBoxes = totalLevels * 4; 
+            const braceCount = totalBays * 4;
             let emptyPalletCount = 0, emptyBoxCount = 0;
             for (const it of wmsData) {
                 if (!it.occupied) {
-                    if (it.type === 'BOX') emptyBoxCount++; else emptyPalletCount++;
+                    if (it.type === 'BOX') emptyBoxCount++; else emptyPalletCount += palletClusterCount;
                 }
             }
 
             // Geometries
-            const uprightGeo = new THREE.BoxGeometry(0.1, CONFIG.levels * CONFIG.levelHeight, 0.1);
+            const uprightGeo = new THREE.BoxGeometry(0.1, warehouseHeight, 0.1);
             const beamGeo = new THREE.BoxGeometry(CONFIG.rackWidth, 0.12, 0.1); // Slightly thicker beams look better
-            const palletGeo = new THREE.BoxGeometry(1.2, 1.0, 1.2);
+            const braceGeo = new THREE.BoxGeometry(Math.sqrt((CONFIG.rackWidth * CONFIG.rackWidth) + (warehouseHeight * warehouseHeight)), 0.045, 0.045);
+            const palletGeo = new THREE.BoxGeometry(0.68, 0.88, 1.02);
+            const loadPalletGeo = new THREE.BoxGeometry(0.78, 0.12, 1.08);
+            const boxPalletGeo = new THREE.BoxGeometry(0.52, 0.08, 0.68);
             const boxGeo = new THREE.BoxGeometry(0.4, 0.3, 0.6);
 
             // Materials - Enhanced for Tone Mapping
-            const metalMat = new THREE.MeshStandardMaterial({ color: 0x334455, roughness: 0.4, metalness: 0.6 });
-            const beamMat = new THREE.MeshStandardMaterial({ color: 0xffc30d, roughness: 0.7, metalness: 0.1 });
-            const goodsMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.8 }); 
+            const metalMat = new THREE.MeshStandardMaterial({ color: 0x4f6472, roughness: 0.32, metalness: 0.78 });
+            const beamMat = new THREE.MeshStandardMaterial({ color: 0xffc30d, roughness: 0.55, metalness: 0.2 });
+            const braceMat = new THREE.MeshStandardMaterial({ color: 0x7f8d99, roughness: 0.3, metalness: 0.85 });
+            const goodsMat = new THREE.MeshStandardMaterial({ color: 0xf5f7fb, roughness: 0.72, metalness: 0.08 }); 
+            const woodMat = new THREE.MeshStandardMaterial({ color: 0x8b5a2b, roughness: 0.92, metalness: 0.04 });
             const rectFillMat = new THREE.MeshBasicMaterial({ color: 0x32ff6f, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide });
             const rectEdgeMat = new THREE.MeshBasicMaterial({ color: 0x00ff66, transparent: true, opacity: 1 });
             const edgeGeo = new THREE.BoxGeometry(1, 1, 1);
-            const palletRectGeo = new THREE.PlaneGeometry(1.2, 1.2);
+            const palletRectGeo = new THREE.PlaneGeometry(0.78, 1.08);
             const boxRectGeo = new THREE.PlaneGeometry(0.4, 0.6);
 
             // Instanced Meshes
             rackMesh = new THREE.InstancedMesh(uprightGeo, metalMat, totalBays * 2); 
             beamMesh = new THREE.InstancedMesh(beamGeo, beamMat, totalLevels * 2); 
+            braceMesh = new THREE.InstancedMesh(braceGeo, braceMat, braceCount);
             palletMesh = new THREE.InstancedMesh(palletGeo, goodsMat, maxPallets); 
             boxMesh = new THREE.InstancedMesh(boxGeo, goodsMat, maxBoxes);
+            loadPalletMesh = new THREE.InstancedMesh(loadPalletGeo, woodMat, maxPallets);
+            boxPalletMesh = new THREE.InstancedMesh(boxPalletGeo, woodMat, maxBoxes);
             if (emptyPalletCount > 0) { emptyPalletRectFillMesh = new THREE.InstancedMesh(palletRectGeo, rectFillMat, emptyPalletCount); }
             if (emptyBoxCount > 0) { emptyBoxRectFillMesh = new THREE.InstancedMesh(boxRectGeo, rectFillMat, emptyBoxCount); }
             if (emptyPalletCount > 0) { emptyPalletRectFrameMesh = new THREE.InstancedMesh(edgeGeo, rectEdgeMat, emptyPalletCount * 4); }
             if (emptyBoxCount > 0) { emptyBoxRectFrameMesh = new THREE.InstancedMesh(edgeGeo, rectEdgeMat, emptyBoxCount * 4); }
 
-            [rackMesh, beamMesh, palletMesh, boxMesh].forEach(m => {
+            [rackMesh, beamMesh, braceMesh, palletMesh, boxMesh, loadPalletMesh, boxPalletMesh].forEach(m => {
                 m.castShadow = true;
                 m.receiveShadow = true;
                 scene.add(m);
-                instanceDataMap[m.uuid] = {};
+                if (m === palletMesh || m === boxMesh) {
+                    instanceDataMap[m.uuid] = {};
+                }
             });
             if (emptyPalletRectFillMesh) { emptyPalletRectFillMesh.castShadow = false; emptyPalletRectFillMesh.receiveShadow = false; scene.add(emptyPalletRectFillMesh); }
             if (emptyBoxRectFillMesh) { emptyBoxRectFillMesh.castShadow = false; emptyBoxRectFillMesh.receiveShadow = false; scene.add(emptyBoxRectFillMesh); }
             if (emptyPalletRectFrameMesh) { emptyPalletRectFrameMesh.castShadow = false; emptyPalletRectFrameMesh.receiveShadow = false; scene.add(emptyPalletRectFrameMesh); }
             if (emptyBoxRectFrameMesh) { emptyBoxRectFrameMesh.castShadow = false; emptyBoxRectFrameMesh.receiveShadow = false; scene.add(emptyBoxRectFrameMesh); }
 
-            let rackIdx = 0, beamIdx = 0, palletIdx = 0, boxIdx = 0, emptyPalletRectFillIdx = 0, emptyBoxRectFillIdx = 0, emptyPalletRectFrameIdx = 0, emptyBoxRectFrameIdx = 0;
+            let rackIdx = 0, beamIdx = 0, braceIdx = 0, palletIdx = 0, boxIdx = 0, loadPalletIdx = 0, boxPalletIdx = 0, emptyPalletRectFillIdx = 0, emptyBoxRectFillIdx = 0, emptyPalletRectFrameIdx = 0, emptyBoxRectFrameIdx = 0;
 
             // Floor - Using a grid texture or improved material
-            const floorGeo = new THREE.PlaneGeometry(300, 300);
+            const floorGeo = new THREE.PlaneGeometry(layout.width + 16, layout.depth + 16);
             const floorMat = new THREE.MeshStandardMaterial({ 
-                color: 0x1a1a1a, 
-                roughness: 0.9, 
-                metalness: 0.1 
+                color: 0x1f262c, 
+                roughness: 0.94, 
+                metalness: 0.08 
             });
             const floor = new THREE.Mesh(floorGeo, floorMat);
             floor.rotation.x = -Math.PI/2;
             floor.receiveShadow = true;
+            floor.position.set(layout.centerX, 0, layout.centerZ + 1);
             scene.add(floor);
 
             // Add subtle grid on floor
-            const grid = new THREE.GridHelper(300, 60, 0x333333, 0x222222);
+            const grid = new THREE.GridHelper(Math.max(layout.width, layout.depth) + 12, 50, 0x3c464f, 0x273038);
+            grid.position.set(layout.centerX, 0.02, layout.centerZ + 1);
             scene.add(grid);
+
+            createWarehouseShell(layout);
+            addFloorMarkings(layout);
 
             // Generation Loop
             wmsData.forEach(item => {
@@ -229,25 +431,20 @@
 
                 // Structure
                 if (item.subSlot === 0) {
-                    dummy.scale.set(1,1,1); dummy.rotation.set(0,0,0);
-                    
                     if (l === 0) { 
-                        dummy.position.set(x, (CONFIG.levels*CONFIG.levelHeight)/2, z);
-                        dummy.updateMatrix();
-                        rackMesh.setMatrixAt(rackIdx++, dummy.matrix);
-                        
-                        dummy.position.set(x + CONFIG.rackWidth, (CONFIG.levels*CONFIG.levelHeight)/2, z);
-                        dummy.updateMatrix();
-                        rackMesh.setMatrixAt(rackIdx++, dummy.matrix);
+                        setInstanceTransform(rackMesh, rackIdx++, x, warehouseHeight / 2, z, 1, 1, 1);
+                        setInstanceTransform(rackMesh, rackIdx++, x + CONFIG.rackWidth, warehouseHeight / 2, z, 1, 1, 1);
+
+                        const braceAngle = Math.atan2(warehouseHeight, CONFIG.rackWidth);
+                        const braceZOffset = (CONFIG.rackDepth / 2) - 0.08;
+                        setInstanceTransform(braceMesh, braceIdx++, x + (CONFIG.rackWidth / 2), warehouseHeight / 2, z + braceZOffset, 1, 1, 1, 0, 0, braceAngle);
+                        setInstanceTransform(braceMesh, braceIdx++, x + (CONFIG.rackWidth / 2), warehouseHeight / 2, z + braceZOffset, 1, 1, 1, 0, 0, -braceAngle);
+                        setInstanceTransform(braceMesh, braceIdx++, x + (CONFIG.rackWidth / 2), warehouseHeight / 2, z - braceZOffset, 1, 1, 1, 0, 0, braceAngle);
+                        setInstanceTransform(braceMesh, braceIdx++, x + (CONFIG.rackWidth / 2), warehouseHeight / 2, z - braceZOffset, 1, 1, 1, 0, 0, -braceAngle);
                     }
 
-                    dummy.position.set(x + CONFIG.rackWidth/2, y, z + CONFIG.rackDepth/2 - 0.05);
-                    dummy.updateMatrix();
-                    beamMesh.setMatrixAt(beamIdx++, dummy.matrix);
-                    
-                    dummy.position.set(x + CONFIG.rackWidth/2, y, z - CONFIG.rackDepth/2 + 0.05);
-                    dummy.updateMatrix();
-                    beamMesh.setMatrixAt(beamIdx++, dummy.matrix);
+                    setInstanceTransform(beamMesh, beamIdx++, x + (CONFIG.rackWidth / 2), y, z + (CONFIG.rackDepth / 2) - 0.05, 1, 1, 1);
+                    setInstanceTransform(beamMesh, beamIdx++, x + (CONFIG.rackWidth / 2), y, z - (CONFIG.rackDepth / 2) + 0.05, 1, 1, 1);
                 }
 
                 // Goods
@@ -257,9 +454,11 @@
                         const xOffset = (item.subSlot * slotWidth) + (slotWidth/2);
                         
                         const pX = x + xOffset;
-                        const pY = y + 0.3;
+                        const palletY = y + 0.04;
+                        const pY = y + 0.24;
                         const pZ = z;
                         
+                        setInstanceTransform(boxPalletMesh, boxPalletIdx++, pX, palletY, pZ, 1, 1, 1);
                         dummy.position.set(pX, pY, pZ);
                         item.worldPos = {x:pX, y:pY, z:pZ}; // Save for Search
 
@@ -277,25 +476,28 @@
                         boxIdx++;
 
                     } else {
-                        const pX = x + CONFIG.rackWidth/2;
-                        const pY = y + 0.6;
-                        const pZ = z;
+                        const clusterCenterX = x + (CONFIG.rackWidth / 2);
+                        const palletBaseY = y + 0.06;
+                        const loadY = y + 0.56;
+                        const shadePalette = [0xd8dde4, 0xe5e9ef, 0xcfd6df];
+                        item.worldPos = { x: clusterCenterX, y: loadY, z: z };
 
-                        dummy.position.set(pX, pY, pZ);
-                        item.worldPos = {x:pX, y:pY, z:pZ}; // Save for Search
+                        palletOffsets.forEach((offset, idx) => {
+                            const palletX = clusterCenterX + offset;
+                            setInstanceTransform(loadPalletMesh, loadPalletIdx++, palletX, palletBaseY, z, 1, 1, 1);
+                            setInstanceTransform(palletMesh, palletIdx, palletX, loadY, z, 1, 1, 1, 0, (idx - 1) * 0.03, 0);
 
-                        dummy.scale.set(1, 1, 1);
-                        dummy.rotation.set(0, 0, 0);
-                        dummy.updateMatrix();
-                        
-                        palletMesh.setMatrixAt(palletIdx, dummy.matrix);
-                        color.setHex(0xe0e0e0); // Light grey wrap
-                        palletMesh.setColorAt(palletIdx, color);
+                            color.setHex(shadePalette[idx]);
+                            palletMesh.setColorAt(palletIdx, color);
+                            instanceDataMap[palletMesh.uuid][palletIdx] = item;
 
-                        instanceDataMap[palletMesh.uuid][palletIdx] = item;
-                        item.instanceId = palletIdx;
-                        item.meshUuid = palletMesh.uuid;
-                        palletIdx++;
+                            if (idx === 1) {
+                                item.instanceId = palletIdx;
+                                item.meshUuid = palletMesh.uuid;
+                            }
+
+                            palletIdx++;
+                        });
                     }
                 } else {
                     if (isPicking) {
@@ -318,32 +520,41 @@
                             dummy.scale.set(t, t, 0.6); dummy.position.set(pX-hx, pYRect, pZ); dummy.updateMatrix(); emptyBoxRectFrameMesh.setMatrixAt(emptyBoxRectFrameIdx++, dummy.matrix);
                         }
                     } else {
-                        const pX = x + CONFIG.rackWidth/2;
                         const pZ = z;
                         const pYRect = y + 0.02;
-                        dummy.rotation.set(-Math.PI/2, 0, 0);
-                        dummy.position.set(pX, pYRect, pZ);
-                        dummy.scale.set(1, 1, 1);
-                        dummy.updateMatrix();
-                        if (emptyPalletRectFillMesh) emptyPalletRectFillMesh.setMatrixAt(emptyPalletRectFillIdx++, dummy.matrix);
-                        if (emptyPalletRectFrameMesh) {
-                            const hx = 1.2/2, hz = 1.2/2; const t = 0.03;
-                            dummy.rotation.set(0, 0, 0);
-                            dummy.scale.set(1.2, t, t); dummy.position.set(pX, pYRect, pZ+hz); dummy.updateMatrix(); emptyPalletRectFrameMesh.setMatrixAt(emptyPalletRectFrameIdx++, dummy.matrix);
-                            dummy.scale.set(1.2, t, t); dummy.position.set(pX, pYRect, pZ-hz); dummy.updateMatrix(); emptyPalletRectFrameMesh.setMatrixAt(emptyPalletRectFrameIdx++, dummy.matrix);
-                            dummy.scale.set(t, t, 1.2); dummy.position.set(pX+hx, pYRect, pZ); dummy.updateMatrix(); emptyPalletRectFrameMesh.setMatrixAt(emptyPalletRectFrameIdx++, dummy.matrix);
-                            dummy.scale.set(t, t, 1.2); dummy.position.set(pX-hx, pYRect, pZ); dummy.updateMatrix(); emptyPalletRectFrameMesh.setMatrixAt(emptyPalletRectFrameIdx++, dummy.matrix);
-                        }
+                        const hx = 0.78 / 2;
+                        const hz = 1.08 / 2;
+                        const t = 0.03;
+
+                        palletOffsets.forEach((offset) => {
+                            const pX = x + (CONFIG.rackWidth / 2) + offset;
+                            dummy.rotation.set(-Math.PI/2, 0, 0);
+                            dummy.position.set(pX, pYRect, pZ);
+                            dummy.scale.set(1, 1, 1);
+                            dummy.updateMatrix();
+                            if (emptyPalletRectFillMesh) emptyPalletRectFillMesh.setMatrixAt(emptyPalletRectFillIdx++, dummy.matrix);
+
+                            if (emptyPalletRectFrameMesh) {
+                                dummy.rotation.set(0, 0, 0);
+                                dummy.scale.set(0.78, t, t); dummy.position.set(pX, pYRect, pZ + hz); dummy.updateMatrix(); emptyPalletRectFrameMesh.setMatrixAt(emptyPalletRectFrameIdx++, dummy.matrix);
+                                dummy.scale.set(0.78, t, t); dummy.position.set(pX, pYRect, pZ - hz); dummy.updateMatrix(); emptyPalletRectFrameMesh.setMatrixAt(emptyPalletRectFrameIdx++, dummy.matrix);
+                                dummy.scale.set(t, t, 1.08); dummy.position.set(pX + hx, pYRect, pZ); dummy.updateMatrix(); emptyPalletRectFrameMesh.setMatrixAt(emptyPalletRectFrameIdx++, dummy.matrix);
+                                dummy.scale.set(t, t, 1.08); dummy.position.set(pX - hx, pYRect, pZ); dummy.updateMatrix(); emptyPalletRectFrameMesh.setMatrixAt(emptyPalletRectFrameIdx++, dummy.matrix);
+                            }
+                        });
                     }
                 }
             });
 
             rackMesh.instanceMatrix.needsUpdate = true;
             beamMesh.instanceMatrix.needsUpdate = true;
+            braceMesh.instanceMatrix.needsUpdate = true;
             palletMesh.instanceMatrix.needsUpdate = true;
             palletMesh.instanceColor.needsUpdate = true;
             boxMesh.instanceMatrix.needsUpdate = true;
             boxMesh.instanceColor.needsUpdate = true;
+            loadPalletMesh.instanceMatrix.needsUpdate = true;
+            boxPalletMesh.instanceMatrix.needsUpdate = true;
             if (emptyPalletRectFillMesh) emptyPalletRectFillMesh.instanceMatrix.needsUpdate = true;
             if (emptyBoxRectFillMesh) emptyBoxRectFillMesh.instanceMatrix.needsUpdate = true;
             if (emptyPalletRectFrameMesh) emptyPalletRectFrameMesh.instanceMatrix.needsUpdate = true;
@@ -470,12 +681,18 @@
         }
 
         function viewMode(mode) {
+            const activeButtons = document.querySelectorAll('#controls .btn');
+            activeButtons.forEach((button) => {
+                button.classList.toggle('active', button.dataset.mode === mode);
+            });
+
+            const defaultPalletColors = [0xd8dde4, 0xe5e9ef, 0xcfd6df];
             for (const [id, data] of Object.entries(instanceDataMap[palletMesh.uuid])) {
                 const instanceId = parseInt(id);
                 if (mode === 'heatmap') {
                     color.setHSL((1.0 - data.velocity) * 0.6, 1.0, 0.5);
                 } else {
-                    color.setHex(0xe0e0e0); 
+                    color.setHex(defaultPalletColors[instanceId % defaultPalletColors.length]); 
                 }
                 palletMesh.setColorAt(instanceId, color);
             }
@@ -526,6 +743,7 @@
             }
 
             controls.update();
+            updateWarehouseShellVisibility();
             renderer.render(scene, camera);
         }
 

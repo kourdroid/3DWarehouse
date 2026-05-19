@@ -9,22 +9,41 @@ class WarehouseStream {
         this.reconnectAttempts = 0;
         this.maxReconnectAttempts = 5;
         this.baseReconnectDelay = 1000;
+        this.hasOpened = false;
+        this.portCandidates = [];
+        this.currentPortIndex = 0;
 
         // Extract token from URL
         const urlParams = new URLSearchParams(window.location.search);
         this.token = urlParams.get('token') || 'demo-token';
+        this.apiPortOverride = urlParams.get('apiPort');
     }
 
     connect() {
-        // Use relative WSS path or fallback to local
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? 'localhost:8000'
-            : window.location.host;
+        const isLocal =
+            window.location.hostname === 'localhost' ||
+            window.location.hostname === '127.0.0.1';
+        const isSplitDev = isLocal && window.location.port === '3000';
 
-        const wsUrl = `${protocol}//${host}/api/v1/stream?token=${this.token}`;
+        this.hasOpened = false;
+        this.currentPortIndex = 0;
+        this.portCandidates = [];
 
-        console.log(`[Stream] Connecting to ${wsUrl}`);
+        if (this.apiPortOverride) {
+            this.portCandidates = [Number(this.apiPortOverride)];
+        } else if (isSplitDev) {
+            this.portCandidates = [8000, 8001];
+        } else {
+            this.portCandidates = [null];
+        }
+
+        const port = this.portCandidates[this.currentPortIndex];
+        const host = this.apiPortOverride || isSplitDev ? `${window.location.hostname}:${port}` : window.location.host;
+        const wsUrl = `${protocol}//${host}/api/v1/stream?token=${encodeURIComponent(this.token)}`;
+        if (typeof loader !== 'undefined') {
+            loader.update(12, 'Connecting to live stream...');
+        }
         this.socket = new WebSocket(wsUrl);
 
         this.socket.onopen = this.handleOpen.bind(this);
@@ -34,8 +53,11 @@ class WarehouseStream {
     }
 
     handleOpen(event) {
-        console.log("[Stream] WebSocket Connection established.");
+        this.hasOpened = true;
         this.reconnectAttempts = 0; // Reset
+        if (typeof loader !== 'undefined') {
+            loader.update(20, 'Live stream connected. Waiting for snapshot...');
+        }
     }
 
     handleMessage(event) {
@@ -50,7 +72,6 @@ class WarehouseStream {
     demultiplex(payload) {
         switch (payload.event) {
             case "SNAPSHOT":
-                console.log("[Stream] Received full snapshot");
                 if (window.handleSnapshot) window.handleSnapshot(payload.data);
                 break;
             case "UPDATE":
@@ -61,28 +82,40 @@ class WarehouseStream {
                 console.warn("[Stream] Alert received:", payload.data.message);
                 break;
             default:
-                console.log("[Stream] Unknown event:", payload.event);
+                console.warn("[Stream] Unknown event:", payload.event);
         }
     }
 
     handleClose(event) {
-        console.log(`[Stream] Connection closed. Code: ${event.code}, Reason: ${event.reason}`);
+        if (!this.hasOpened && this.currentPortIndex < this.portCandidates.length - 1) {
+            this.currentPortIndex++;
+            this.connect();
+            return;
+        }
         this.attemptReconnect();
     }
 
     handleError(error) {
         console.error("[Stream] WebSocket error:", error);
+        if (!this.hasOpened && this.currentPortIndex < this.portCandidates.length - 1) {
+            this.currentPortIndex++;
+            this.connect();
+        }
     }
 
     attemptReconnect() {
         if (this.reconnectAttempts < this.maxReconnectAttempts) {
             this.reconnectAttempts++;
             const delay = this.baseReconnectDelay * Math.pow(2, this.reconnectAttempts - 1);
-            console.log(`[Stream] Reconnecting in ${delay}ms (Attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+            if (typeof loader !== 'undefined') {
+                loader.update(12, `Live stream disconnected. Reconnecting (${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+            }
             setTimeout(() => this.connect(), delay);
         } else {
             console.error("[Stream] Max reconnect attempts reached. Stream offline.");
-            // UI fallback trigger could go here
+            if (typeof loader !== 'undefined' && loader.status) {
+                loader.status.innerHTML = "<span style='color: #ef4444;'>Live stream offline. Check /api/v1/stream connectivity.</span>";
+            }
         }
     }
 }

@@ -1,7 +1,18 @@
 import math
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import delete
-from app.models.layout import WarehouseLayout, Zone, Aisle, RackBay, Level, StorageUnit, StorageType, AisleOrientation
+from app.models.layout import (
+    WarehouseLayout,
+    Zone,
+    Aisle,
+    RackBay,
+    Level,
+    StorageUnit,
+    StorageType,
+    AisleOrientation,
+    StorageKind,
+    InventoryStatus,
+)
 from typing import Dict, Any
 
 class LayoutBuilderService:
@@ -49,6 +60,7 @@ class LayoutBuilderService:
         for z_idx, z_data in enumerate(zones_data):
             zone = Zone(
                 layout_id=layout.id,
+                code=z_data.get("zone_code") or z_data.get("code") or z_data.get("name", f"Zone {z_idx+1}").replace(" ", "").upper()[:10],
                 name=z_data.get("name", f"Zone {z_idx+1}"),
                 color_hex=z_data.get("color_hex", "#ffffff"),
                 storage_type=z_data.get("storage_type", StorageType.STANDARD_RACK),
@@ -75,8 +87,9 @@ class LayoutBuilderService:
                         zone_id=zone.id,
                         identifier=f"A{a_idx+1:02d}",
                         orientation=AisleOrientation.NORTH_SOUTH, # Hardcoded for now based on standard UI drop
-                        start_x_meters=zone.position_x_meters + (a_idx * spacing),
-                        start_z_meters=zone.position_z_meters
+                        start_x_meters=a_idx * spacing,
+                        start_z_meters=0.0,
+                        spacing_meters=spacing,
                     )
                     self.db.add(aisle)
                     await self.db.flush()
@@ -87,6 +100,7 @@ class LayoutBuilderService:
                             identifier=f"B{b_idx+1:03d}",
                             sequence_number=b_idx + 1,
                             width_meters=bay_width,
+                            depth_meters=z_data.get("bay_depth_meters", 1.2),
                             pallets_per_bay=pallets_per_bay
                         )
                         self.db.add(bay)
@@ -119,7 +133,15 @@ class LayoutBuilderService:
                                     bay_id=bay.id,
                                     location_code=loc_code,
                                     level_number=level.level_number,
+                                    position_number=p_idx + 1,
+                                    storage_kind=StorageKind.PALLET,
                                     elevation_meters=level.height_meters,
+                                    x_meters=zone.position_x_meters + aisle.start_x_meters + (b_idx * bay_width) + (p_idx * (bay_width / pallets_per_bay)) + ((bay_width / pallets_per_bay) / 2),
+                                    y_meters=level.height_meters,
+                                    z_meters=zone.position_z_meters + aisle.start_z_meters,
+                                    width_meters=bay_width / pallets_per_bay,
+                                    depth_meters=bay.depth_meters,
+                                    height_meters=1.2,
                                     max_weight_kg=level.max_weight_kg
                                 )
                                 
@@ -158,9 +180,16 @@ class LayoutBuilderService:
                         bay_id=None, # No bay
                         location_code=loc_code,
                         level_number=0, # Floor level
+                        position_number=s_idx + 1,
+                        storage_kind=StorageKind.BULK,
                         elevation_meters=0.0,
+                        x_meters=zone.position_x_meters + x_idx * 1.5,
+                        y_meters=0.0,
+                        z_meters=zone.position_z_meters + z_idx_2 * 1.5,
+                        width_meters=1.2,
+                        depth_meters=1.2,
+                        height_meters=1.2,
                         max_weight_kg=5000.0 # High floor capacity
-                        # In a real system, we'd add precise X/Y here if the model supported discrete pallet coordinates
                     )
                     
                     if loc_code in generated_codes:

@@ -19,3 +19,9 @@ cd ..
 python -m http.server 3000
 ```
 Open `http://localhost:3000`
+
+## Docker (Deployment)
+```bash
+docker compose up --build
+```
+Open `http://localhost:8080`

@@ -1,0 +1,13 @@
+.git
+.gitignore
+.vscode
+.idea
+node_modules
+dist
+build
+coverage
+*.log
+*.tmp
+*.bak
+compose.override.yaml
+README.md

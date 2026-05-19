@@ -23,6 +23,14 @@ class InventoryStateSchema(BaseModel):
     fill_percentage: int
     sku: Optional[str] = None
     quantity: int
+    pallet_id: Optional[str] = None
+    storage_kind: str
+    x_meters: float
+    y_meters: float
+    z_meters: float
+    width_meters: float
+    depth_meters: float
+    height_meters: float
 
 class SnapshotPayload(BaseModel):
     layout: LayoutSnapshotSchema

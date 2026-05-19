@@ -1,0 +1,25 @@
+services:
+  warehouse-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:stable-alpine}
+    image: ${APP_IMAGE:-smatch-warehouse:local}
+    container_name: ${APP_CONTAINER_NAME:-smatch-warehouse}
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz || exit 1"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/cache/nginx
+      - /var/run
+    security_opt:
+      - no-new-privileges:true

@@ -54,8 +54,8 @@
                     <div class="stat-row"><span>TOTAL POSITIONS</span><span class="stat-val" id="stat-total">0</span>
                     </div>
                     <div class="stat-row"><span>OCCUPIED</span><span class="stat-val" id="stat-occupied">0</span></div>
-                    <div class="stat-row"><span>PALLET ZONES</span><span class="stat-val">Aisle 1–3</span></div>
-                    <div class="stat-row"><span>PICKING ZONES</span><span class="stat-val">Aisle 4–6</span></div>
+                    <div class="stat-row"><span>UNRESOLVED</span><span class="stat-val">0</span></div>
+                    <div class="stat-row"><span>SNAPSHOT</span><span class="stat-val">--</span></div>
                 </div>
             </div>
 
@@ -117,7 +117,8 @@
             <button class="btn" onclick="viewMode('heatmap', this)">Heatmap</button>
             <button class="btn" onclick="viewMode('occupation', this)">Occupation</button>
             <div style="flex-grow:1;"></div>
-            <button class="btn" id="nav-builder-btn" onclick="window.location.hash='#/builder'" style="background:#8b5cf6; color:#fff; font-weight:bold;">✎ 2D BUILDER</button>
+            <button class="btn" id="nav-import-btn" onclick="window.location.hash='#/import'" style="background:#10b981; color:#fff; font-weight:bold;">IMPORT DATA</button>
+            <button class="btn" id="nav-builder-btn" onclick="window.location.hash='#/builder'" style="background:#8b5cf6; color:#fff; font-weight:bold;">MACRO LAYOUT</button>
         </div>
 
         <div id="canvas-container"></div>
@@ -125,6 +126,9 @@
 
     <!-- Builder Container -->
     <div id="builder-container" style="display: none;"></div>
+
+    <!-- Excel Import Container -->
+    <div id="import-container" style="display: none;"></div>
 
     <!-- Warehouse Modules (loaded in dependency order) -->
     <!-- 1. Constants & Config     -->
@@ -141,12 +145,6 @@
     <script src="./scripts/warehouse.stream.js"></script>
     <!-- 7. App Boot & Render Loop -->
     <script src="./scripts/warehouse.app.js"></script>
-
-    <!-- Builder Modules -->
-    <script src="./scripts/builder/builder.commands.js"></script>
-    <script src="./scripts/builder/builder.api.js"></script>
-    <script src="./scripts/builder/builder.canvas.js"></script>
-    <script src="./scripts/builder/builder.panel.js"></script>
 
     <!-- 8. Router & Entry Point -->
     <script src="./scripts/main.js"></script>

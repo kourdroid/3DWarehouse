@@ -7,8 +7,9 @@
 
 // ─── Warehouse Envelope ──────────────────────────────
 function createWarehouseEnvelope() {
-    const W = WAREHOUSE.width, D = WAREHOUSE.depth, H = WAREHOUSE.height;
-    const oX = WAREHOUSE.originX, oZ = WAREHOUSE.originZ;
+    const bounds = getWarehouseBounds();
+    const W = bounds.width, D = bounds.depth, H = bounds.height;
+    const oX = bounds.originX, oZ = bounds.originZ;
 
     // Floor
     const floorGeo = new THREE.PlaneGeometry(W + 20, D + 20);
@@ -26,26 +27,45 @@ function createWarehouseEnvelope() {
 
     // Walls
     const wallMat = new THREE.MeshStandardMaterial({
-        color: 0x1a1d22, roughness: 0.95, transparent: true, opacity: 0.6, side: THREE.DoubleSide
+        color: 0x1a1d22, roughness: 0.95, transparent: true, opacity: 0.78, side: THREE.DoubleSide
     });
     const backWall = new THREE.Mesh(new THREE.PlaneGeometry(W + 10, H), wallMat);
     backWall.position.set(oX + W / 2, H / 2, oZ + D + 3);
+    backWall.receiveShadow = true;
     scene.add(backWall);
 
     const sideWallGeo = new THREE.PlaneGeometry(D + 10, H);
     const leftWall = new THREE.Mesh(sideWallGeo, wallMat);
     leftWall.rotation.y = Math.PI / 2;
     leftWall.position.set(oX - 3, H / 2, oZ + D / 2);
+    leftWall.receiveShadow = true;
     scene.add(leftWall);
 
     const rightWall = new THREE.Mesh(sideWallGeo, wallMat);
     rightWall.rotation.y = -Math.PI / 2;
     rightWall.position.set(oX + W + 3, H / 2, oZ + D / 2);
+    rightWall.receiveShadow = true;
     scene.add(rightWall);
+
+    // Front frame keeps the warehouse readable on stage without closing the view.
+    const portalMat = new THREE.MeshStandardMaterial({ color: 0x232831, roughness: 0.9, metalness: 0.08 });
+    const portalWidth = 1.25;
+    const portalHeight = H * 0.78;
+    const leftPortal = new THREE.Mesh(new THREE.BoxGeometry(portalWidth, portalHeight, 0.5), portalMat);
+    leftPortal.position.set(oX - 0.6, portalHeight / 2, oZ - 0.75);
+    const rightPortal = new THREE.Mesh(new THREE.BoxGeometry(portalWidth, portalHeight, 0.5), portalMat);
+    rightPortal.position.set(oX + W + 0.6, portalHeight / 2, oZ - 0.75);
+    const topPortal = new THREE.Mesh(new THREE.BoxGeometry(W + 2.5, 0.7, 0.5), portalMat);
+    topPortal.position.set(oX + W / 2, portalHeight, oZ - 0.75);
+    [leftPortal, rightPortal, topPortal].forEach((portalPart) => {
+        portalPart.castShadow = true;
+        portalPart.receiveShadow = true;
+        scene.add(portalPart);
+    });
 
     // Ceiling
     const ceilingMat = new THREE.MeshStandardMaterial({
-        color: 0x151820, roughness: 1.0, transparent: true, opacity: 0.3, side: THREE.DoubleSide
+        color: 0x151820, roughness: 1.0, transparent: true, opacity: 0.18, side: THREE.DoubleSide
     });
     const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(W + 10, D + 10), ceilingMat);
     ceiling.rotation.x = Math.PI / 2;
@@ -195,11 +215,12 @@ function makeOccBadge(pct) {
 
 // ─── Dust Particles ─────────────────────────────────
 function createDustParticles() {
-    const count = 500;
+    const count = 220;
     const geo = new THREE.BufferGeometry();
     const positions = new Float32Array(count * 3);
-    const W = WAREHOUSE.width, D = WAREHOUSE.depth, H = WAREHOUSE.height;
-    const oX = WAREHOUSE.originX, oZ = WAREHOUSE.originZ;
+    const bounds = getWarehouseBounds();
+    const W = bounds.width, D = bounds.depth, H = bounds.height;
+    const oX = bounds.originX, oZ = bounds.originZ;
 
     for (let i = 0; i < count; i++) {
         positions[i * 3] = oX + Math.random() * W;
