@@ -52,7 +52,7 @@ function updateHoverInteraction() {
     hoverPointer.dirty = false;
     raycaster.setFromCamera(mouse, camera);
 
-    const intersection = raycaster.intersectObjects([palletMesh, boxMesh]);
+    const intersection = raycaster.intersectObjects([palletMesh, boxMesh].filter(Boolean));
     const tooltip = document.getElementById('tooltip');
 
     if (!intersection.length) {
@@ -93,7 +93,7 @@ function onClick(event) {
     }
 
     // Goods → detail panel
-    const hits = raycaster.intersectObjects([palletMesh, boxMesh]);
+    const hits = raycaster.intersectObjects([palletMesh, boxMesh].filter(Boolean));
     if (hits.length > 0) {
         const data = instanceDataMap[hits[0].object.uuid][hits[0].instanceId];
         if (data) selectItem(data);
@@ -110,7 +110,8 @@ function selectItem(item) {
         highlightState.mesh.instanceColor.needsUpdate = true;
     }
 
-    const mesh = item.type === 'BOX' ? boxMesh : palletMesh;
+    const mesh = item.type === 'BOX' && boxMesh ? boxMesh : palletMesh;
+    if (!mesh) return;
     const origColor = new THREE.Color();
     mesh.getColorAt(item.instanceId, origColor);
     highlightState = { mesh, instanceId: item.instanceId, originalColor: origColor };
@@ -276,22 +277,26 @@ function viewMode(mode, btnEl) {
     document.querySelectorAll('#controls .btn').forEach(b => b.classList.remove('active'));
     if (btnEl) btnEl.classList.add('active');
 
-    for (const [id, data] of Object.entries(instanceDataMap[palletMesh.uuid])) {
-        const idx = parseInt(id);
-        if (mode === 'heatmap') color.setHSL((1.0 - data.velocity) * 0.6, 1.0, 0.5);
-        else if (mode === 'occupation') color.setHex(data.occupied ? 0x22c55e : 0xef4444);
-        else color.setHex(0xd0d5dc);
-        palletMesh.setColorAt(idx, color);
+    if (palletMesh && instanceDataMap[palletMesh.uuid]) {
+        for (const [id, data] of Object.entries(instanceDataMap[palletMesh.uuid])) {
+            const idx = parseInt(id);
+            if (mode === 'heatmap') color.setHSL((1.0 - data.velocity) * 0.6, 1.0, 0.5);
+            else if (mode === 'occupation') color.setHex(data.occupied ? 0x22c55e : 0xef4444);
+            else color.setHex(0xd0d5dc);
+            palletMesh.setColorAt(idx, color);
+        }
+        palletMesh.instanceColor.needsUpdate = true;
     }
-    for (const [id, data] of Object.entries(instanceDataMap[boxMesh.uuid])) {
-        const idx = parseInt(id);
-        if (mode === 'heatmap') color.setHSL((1.0 - data.velocity) * 0.6, 1.0, 0.5);
-        else if (mode === 'occupation') color.setHex(data.occupied ? 0x22c55e : 0xef4444);
-        else color.setHex(0xc4956a);
-        boxMesh.setColorAt(idx, color);
+    if (boxMesh && instanceDataMap[boxMesh.uuid]) {
+        for (const [id, data] of Object.entries(instanceDataMap[boxMesh.uuid])) {
+            const idx = parseInt(id);
+            if (mode === 'heatmap') color.setHSL((1.0 - data.velocity) * 0.6, 1.0, 0.5);
+            else if (mode === 'occupation') color.setHex(data.occupied ? 0x22c55e : 0xef4444);
+            else color.setHex(0xc4956a);
+            boxMesh.setColorAt(idx, color);
+        }
+        boxMesh.instanceColor.needsUpdate = true;
     }
-    palletMesh.instanceColor.needsUpdate = true;
-    boxMesh.instanceColor.needsUpdate = true;
 }
 
 // ─── Window Resize ───────────────────────────────────

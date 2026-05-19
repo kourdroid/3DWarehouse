@@ -23,6 +23,8 @@ const BuilderAPI = {
         return `${window.location.origin}/api/v1`;
     })(),
 
+    token: new URLSearchParams(window.location.search).get('token') || 'demo-token',
+
     async loadLayout(layoutId = 'default') {
         console.log(`[BuilderAPI] Loading layout ${layoutId}`);
         try {
@@ -50,7 +52,8 @@ const BuilderAPI = {
             const response = await fetch(`${this.baseUrl}/layouts/configure`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-Demo-Token': this.token
                 },
                 body: JSON.stringify(payload)
             });

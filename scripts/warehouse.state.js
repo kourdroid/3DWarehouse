@@ -43,6 +43,9 @@ let wmsData = [];
 let itemLookup = {};
 let PHYSICAL_MAP = {}; // Map logical location code to physical 3D properties and instance index
 let currentLayout = null;
+let currentSnapshotAt = null;
+let viewerInteractionBound = false;
+let animationStarted = false;
 
 // Camera Animation
 let isAnimatingCamera = false;

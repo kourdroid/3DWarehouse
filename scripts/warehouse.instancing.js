@@ -43,8 +43,9 @@ function buildStructureFromLayout(layout) {
     // 3. Initialize Shared InstancedMeshes
     rackMesh = new THREE.InstancedMesh(uprightGeo, metalMat, totalBays * 2);
     beamMesh = new THREE.InstancedMesh(beamGeo, beamMat, totalLevels * 2);
-    palletMesh = new THREE.InstancedMesh(palletGoodsGeo, shrinkWrapMat, Math.max(totalLevels + totalBulkFloorUnits, 1));
-    palletBaseMesh = new THREE.InstancedMesh(palletBaseGeo, woodMat, Math.max(totalLevels + totalBulkFloorUnits, 1));
+    const storageUnitCapacity = Math.max(wmsData.length, totalLevels + totalBulkFloorUnits, 1);
+    palletMesh = new THREE.InstancedMesh(palletGoodsGeo, shrinkWrapMat, storageUnitCapacity);
+    palletBaseMesh = new THREE.InstancedMesh(palletBaseGeo, woodMat, storageUnitCapacity);
 
     // We repurpose emptyPalletRectFillMesh for Floor Bulk marking for simplicity in MVP
     emptyPalletRectFillMesh = new THREE.InstancedMesh(floorMarkingGeo, floorZoneMat, Math.max(totalBulkFloorUnits * 2, 1));
@@ -444,6 +445,7 @@ window.handleUpdateDelta = (deltaData) => {
     item.occupied = item.status === 'OCCUPIED';
     item.qty = deltaData.quantity;
     item.sku = deltaData.sku || 'EMPTY';
+    item.pallet_id = deltaData.pallet_id || null;
 
     const targetMesh = scene.getObjectByProperty('uuid', item.meshUuid);
     if (!targetMesh || item.instanceId === undefined) return;

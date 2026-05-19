@@ -32,7 +32,10 @@ function normalizeInventoryItem(rawItem) {
         : Math.max(0, Math.min(1, (Number(rawItem.fill_percentage) || quantity) / 100));
     const type = rawItem.storage_kind || rawItem.type || rawItem.unit_type || (parsed.subSlot > 0 ? 'BOX' : 'PALLET');
     const zone = rawItem.zone || rawItem.zone_type || (type === 'BOX' ? 'PICKING' : 'PALLET');
-    const hasResolvedPosition = ['x_meters', 'y_meters', 'z_meters'].every((key) => Number.isFinite(Number(rawItem[key])));
+    const hasFinitePosition = ['x_meters', 'y_meters', 'z_meters'].every((key) => Number.isFinite(Number(rawItem[key])));
+    const isOrigin = Number(rawItem.x_meters) === 0 && Number(rawItem.y_meters) === 0 && Number(rawItem.z_meters) === 0;
+    const isFloorStorage = rawItem.storage_kind === 'BULK' || rawItem.storage_kind === 'FLOOR';
+    const hasResolvedPosition = hasFinitePosition && (!isOrigin || isFloorStorage);
 
     return {
         ...rawItem,
@@ -97,8 +100,11 @@ function computeLayoutBounds(layout) {
 function updateHudStats() {
     const totalPositions = wmsData.length;
     const occupiedCount = wmsData.filter(item => item.occupied).length;
+    const unresolvedCount = wmsData.filter(item => !item.hasResolvedPosition).length;
     const totalEl = document.getElementById('stat-total');
     const occupiedEl = document.getElementById('stat-occupied');
+    const unresolvedEl = document.querySelector('.hud-stats .stat-row:nth-child(3) .stat-val');
+    const snapshotEl = document.querySelector('.hud-stats .stat-row:nth-child(4) .stat-val');
 
     if (totalEl) {
         totalEl.innerText = totalPositions.toLocaleString();
@@ -107,6 +113,56 @@ function updateHudStats() {
         const rate = totalPositions > 0 ? Math.round((occupiedCount / totalPositions) * 100) : 0;
         occupiedEl.innerText = `${occupiedCount.toLocaleString()} (${rate}%)`;
     }
+    if (unresolvedEl) {
+        unresolvedEl.innerText = unresolvedCount.toLocaleString();
+    }
+    if (snapshotEl) {
+        snapshotEl.innerText = currentSnapshotAt ? currentSnapshotAt.toLocaleTimeString() : '--';
+    }
+}
+
+function disposeObject3D(object) {
+    if (object.geometry && typeof object.geometry.dispose === 'function') {
+        object.geometry.dispose();
+    }
+    if (object.material) {
+        const materials = Array.isArray(object.material) ? object.material : [object.material];
+        materials.forEach((material) => {
+            if (material.map && typeof material.map.dispose === 'function') {
+                material.map.dispose();
+            }
+            if (typeof material.dispose === 'function') {
+                material.dispose();
+            }
+        });
+    }
+}
+
+function clearDynamicScene() {
+    if (!scene) return;
+
+    const removable = scene.children.filter((child) => !child.isLight);
+    removable.forEach((child) => {
+        scene.remove(child);
+        child.traverse(disposeObject3D);
+    });
+
+    rackMesh = null;
+    beamMesh = null;
+    palletMesh = null;
+    boxMesh = null;
+    palletBaseMesh = null;
+    palletCartonMesh = null;
+    emptyPalletRectFillMesh = null;
+    emptyBoxRectFillMesh = null;
+    emptyPalletRectFrameMesh = null;
+    emptyBoxRectFrameMesh = null;
+    dustParticles = null;
+    aisleOccBadges = [];
+    aisleSprites = [];
+    pickPathLine = null;
+    selectedItem = null;
+    highlightState = { mesh: null, instanceId: null, originalColor: null };
 }
 
 function positionPresentationCamera() {
@@ -189,8 +245,10 @@ function init() {
     // Setup stream handlers
     window.handleSnapshot = (snapshotData) => {
         loader.update(30, 'Receiving initial warehouse state...');
+        clearDynamicScene();
         clearWarehouseBoundsOverride();
         currentLayout = snapshotData.layout || null;
+        currentSnapshotAt = new Date();
         wmsData = (snapshotData.inventory_state || []).map(normalizeInventoryItem);
         itemLookup = {};
         PHYSICAL_MAP = {};
@@ -236,23 +294,26 @@ function init() {
 
         loader.update(95, 'Setting up interactions...');
 
-        // Event listeners
-        raycaster = new THREE.Raycaster();
-        mouse = new THREE.Vector2();
-        window.addEventListener('mousemove', onMouseMove);
-        window.addEventListener('click', onClick);
-        window.addEventListener('resize', onWindowResize);
+        if (!viewerInteractionBound) {
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('click', onClick);
+            window.addEventListener('resize', onWindowResize);
 
-        // Search autocomplete
-        const searchInput = document.getElementById('search-input');
-        searchInput.addEventListener('input', onSearchInput);
-        searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') performSearch(); });
-        searchInput.addEventListener('blur', () => { setTimeout(() => hideSuggestions(), 150); });
+            const searchInput = document.getElementById('search-input');
+            searchInput.addEventListener('input', onSearchInput);
+            searchInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') performSearch(); });
+            searchInput.addEventListener('blur', () => { setTimeout(() => hideSuggestions(), 150); });
+            viewerInteractionBound = true;
+        }
 
         loader.finish();
 
-        // Finalize boot loop
-        animate();
+        if (!animationStarted) {
+            animationStarted = true;
+            animate();
+        }
     };
 
     // Replace synchronous mock WMS generation with async WebSocket call

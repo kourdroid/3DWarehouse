@@ -1,11 +1,10 @@
 import json
 import logging
 import asyncio
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, HTTPException
-from pydantic import BaseModel, Field, ValidationError
-from typing import Dict, Any
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query
 
 from app.core.redis import subscribe_channel
+from app.core.auth import validate_demo_token
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -36,38 +35,17 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
-# T024: Pydantic Validation for incoming WebSocket connection token
-class AuthTokenSchema(BaseModel):
-    token: str = Field(..., min_length=10, description="JWT Authentication Token from WMS")
-
-def validate_token(token: str) -> bool:
-    """MVP: Accept any token with 5+ chars. In production, verify JWT."""
-    try:
-        AuthTokenSchema(token=token)
-        return True
-    except ValidationError:
-        return False
-
 from app.core.database import AsyncSessionLocal
-from app.models.layout import InventoryStatus, WarehouseLayout, Zone, Aisle, RackBay, StorageUnit
+from app.models.layout import WarehouseLayout, Zone, Aisle, RackBay, StorageUnit
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 from app.schemas.layout import LayoutResponse
+from app.services.inventory_provider import DemoInventoryProvider
 
-@router.websocket("/stream")
-async def warehouse_stream(websocket: WebSocket, token: str = Query(...)):
-    if not validate_token(token):
-        logger.warning("Rejected websocket connection due to invalid token")
-        await websocket.close(code=1008, reason="Invalid authentication token")
-        return
-        
-    await websocket.accept()
-    logger.info("WebSocket connection established")
-    
-    # 1. Send the initial snapshot immediately
-    import random
+
+async def build_snapshot_payload() -> tuple[dict, list[str]]:
+    inventory_provider = DemoInventoryProvider()
     async with AsyncSessionLocal() as session:
-        # Fetch layout structure
         stmt = select(WarehouseLayout).options(
             selectinload(WarehouseLayout.zones)
             .selectinload(Zone.aisles)
@@ -79,52 +57,39 @@ async def warehouse_stream(websocket: WebSocket, token: str = Query(...)):
         layout = result.scalars().first()
         layout_dict = LayoutResponse.model_validate(layout).model_dump(mode="json") if layout else None
 
-        # Fetch all storage units. Imported layouts carry real inventory state;
-        # seeded/demo layouts without inventory still get a local mock state.
         units_result = await session.execute(select(StorageUnit).where(StorageUnit.is_active == True))
         all_units = units_result.scalars().all()
-        has_imported_inventory = any(
-            unit.status != InventoryStatus.EMPTY or bool(unit.sku) or unit.quantity > 0
-            for unit in all_units
-        )
-        
-        inventory_state = []
-        location_codes = []  # Cache for mock updater
-        for unit in all_units:
-            is_occupied = unit.status == InventoryStatus.OCCUPIED
-            status = unit.status.value
-            sku = unit.sku
-            quantity = unit.quantity
-            if not has_imported_inventory:
-                is_occupied = random.random() > 0.4  # ~60% occupied
-                status = "OCCUPIED" if is_occupied else "EMPTY"
-                sku = f"SKU-{random.randint(1000, 9999)}" if is_occupied else None
-                quantity = random.randint(1, 200) if is_occupied else 0
-            location_codes.append(unit.location_code)
-            inventory_state.append({
-                "storage_unit_id": str(unit.id),
-                "location_code": unit.location_code,
-                "status": status,
-                "fill_percentage": 100 if is_occupied else 0,
-                "sku": sku,
-                "quantity": quantity,
-                "pallet_id": unit.pallet_id,
-                "storage_kind": unit.storage_kind.value,
-                "x_meters": unit.x_meters,
-                "y_meters": unit.y_meters,
-                "z_meters": unit.z_meters,
-                "width_meters": unit.width_meters,
-                "depth_meters": unit.depth_meters,
-                "height_meters": unit.height_meters,
-            })
 
-    initial_snapshot = {
-        "event": "SNAPSHOT",
-        "data": {
-            "layout": layout_dict,
-            "inventory_state": inventory_state
-        }
-    }
+    return (
+        {
+            "event": "SNAPSHOT",
+            "data": {
+                "layout": layout_dict,
+                "inventory_state": inventory_provider.snapshot(all_units),
+            },
+        },
+        [unit.location_code for unit in all_units],
+    )
+
+
+async def broadcast_snapshot() -> None:
+    snapshot, _ = await build_snapshot_payload()
+    await manager.broadcast_json(snapshot)
+
+
+@router.websocket("/stream")
+async def warehouse_stream(websocket: WebSocket, token: str = Query(...)):
+    if not validate_demo_token(token):
+        logger.warning("Rejected websocket connection due to invalid token")
+        await websocket.close(code=1008, reason="Invalid authentication token")
+        return
+
+    await manager.connect(websocket)
+    logger.info("WebSocket connection established")
+    
+    # 1. Send the initial snapshot immediately
+    inventory_provider = DemoInventoryProvider()
+    initial_snapshot, location_codes = await build_snapshot_payload()
     await websocket.send_json(initial_snapshot)
     
     # 2. Subscribe to internal Redis Pub/Sub backplane
@@ -136,23 +101,13 @@ async def warehouse_stream(websocket: WebSocket, token: str = Query(...)):
     async def forward_messages():
         try:
             while True:
-                await asyncio.sleep(0.5)
-                if not location_codes:
+                await asyncio.sleep(5)
+                update_data = inventory_provider.mock_update(location_codes)
+                if not update_data:
                     continue
-                # Pick a real location code from the database
-                mock_loc = random.choice(location_codes)
-                is_occupied = random.random() > 0.5
-                
                 update_event = {
                     "event": "UPDATE",
-                    "data": {
-                        "storage_unit_id": f"mock-uuid-{mock_loc}",
-                        "location_code": mock_loc,
-                        "status": "OCCUPIED" if is_occupied else "EMPTY",
-                        "fill_percentage": 100 if is_occupied else 0,
-                        "sku": f"SKU-DEMO-{random.randint(100, 999)}" if is_occupied else None,
-                        "quantity": random.randint(1, 100) if is_occupied else 0
-                    }
+                    "data": update_data,
                 }
                 await websocket.send_json(update_event)
         except Exception as e:
@@ -185,3 +140,5 @@ async def warehouse_stream(websocket: WebSocket, token: str = Query(...)):
     
     for task in pending:
         task.cancel()
+
+    manager.disconnect(websocket)

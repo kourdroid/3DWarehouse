@@ -4,6 +4,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Smatch 3D Warehouse API"
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api/v1"
+    DEMO_API_TOKEN: str = "demo-token"
     
     # Database
     # Defaulting to an async SQLite database for zero-config local testing
