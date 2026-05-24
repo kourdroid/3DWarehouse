@@ -269,6 +269,13 @@ input:focus {
     border-color: #FFC30D;
 }
 
+button:focus-visible,
+input:focus-visible,
+input[type="checkbox"]:focus-visible {
+    outline: 2px solid #FFC30D;
+    outline-offset: 2px;
+}
+
 input::placeholder {
     color: #445566;
 }
