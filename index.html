@@ -44,7 +44,7 @@
                 <div class="search-box">
                     <div class="search-wrapper">
                         <input type="text" id="search-input" placeholder="Search ID (e.g., A0-B3...)"
-                            autocomplete="off">
+                            autocomplete="off" aria-label="Search warehouse items by ID">
                         <div id="search-suggestions" class="search-suggestions"></div>
                     </div>
                     <button class="search-btn" onclick="performSearch()">GO</button>
@@ -84,7 +84,7 @@
         <div id="detail-panel" class="detail-panel hidden">
             <div class="detail-header">
                 <span class="detail-title">UNIT DETAIL</span>
-                <button class="detail-close" onclick="closeDetailPanel()">✕</button>
+                <button class="detail-close" aria-label="Close detail panel" title="Close detail panel" onclick="closeDetailPanel()">✕</button>
             </div>
             <div class="detail-body">
                 <div class="detail-row"><span>ID</span><span id="dp-id">--</span></div>
