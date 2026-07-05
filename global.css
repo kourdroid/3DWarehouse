@@ -381,6 +381,11 @@ input::placeholder {
     color: #fff;
 }
 
+.detail-close:focus-visible {
+    outline: 2px solid #FFC30D;
+    outline-offset: 2px;
+}
+
 .detail-body {
     padding: 14px 18px;
 }
